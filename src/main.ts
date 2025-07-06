@@ -103,7 +103,19 @@ class LabelPlusInput extends GenericUI {
         xx += 305;
         pnl.lpTextFileBrowseButton = pnl.add('button', [xx, yy - 2, xx + 30, yy + 20], '...');
         xx += 30;
+        yy += 25;
+        
+        // Meo格式文本選擇
+        xx = 10;
+        pnl.meoTextFileLabel = pnl.add('statictext', [xx, yy, xx + 120, yy + 20], I18n.LABEL_MEO_FILE);
+        xx += 120;
+        pnl.meoTextFileTextBox = pnl.add('edittext', [xx, yy, xx + 300, yy + 20], '');
+        pnl.meoTextFileTextBox.enabled = false;
+        xx += 305;
+        pnl.meoTextFileBrowseButton = pnl.add('button', [xx, yy - 2, xx + 30, yy + 20], '...');
+        xx += 30;
         yy += 20;
+        
         pnl.lpTextFileBrowseButton.onClick = () => {
             let inputPnl = this.inputPnl;
             let outputPnl = this.outputPnl;
@@ -113,30 +125,113 @@ class LabelPlusInput extends GenericUI {
             let f = File.openDialog(I18n.LABEL_TEXT_FILE, fmask);
             if (f && f.exists) {
                 pnl.lpTextFileTextBox.text = f.fsName;
-                let fl = new Folder(f.path);
-                inputPnl.sourceTextBox.text = fl.fsName;
-                outputPnl.targetTextBox.text = fl.fsName + dirSeparator + 'output';
+                pnl.meoTextFileTextBox.text = ""; // 清空Meo文本框
+                this.loadTextFile(f, inputPnl, outputPnl, automationPnl, 'labelplus');
+            }
+        };
 
-                // detect images source sub dir
-                let src_subdirs = ["images", "image", "img", "source", "图源"];
-                for (let subdir of src_subdirs) {
-                    let dir_path = fl.fsName + dirSeparator + subdir;
-                    if (FolderIsExists(dir_path)) {
-                        log("dectect images source: " + dir_path);
-                        inputPnl.sourceTextBox.text = dir_path;
-                        break;
-                    }
+        pnl.meoTextFileBrowseButton.onClick = () => {
+            let inputPnl = this.inputPnl;
+            let outputPnl = this.outputPnl;
+            let automationPnl = this.automationPnl;
+
+            let fmask = "*.json";
+            let f = File.openDialog(I18n.LABEL_MEO_FILE, fmask);
+            if (f && f.exists) {
+                pnl.meoTextFileTextBox.text = f.fsName;
+                pnl.lpTextFileTextBox.text = ""; // 清空LabelPlus文本框
+                this.loadTextFile(f, inputPnl, outputPnl, automationPnl, 'meo');
+            }
+        };
+
+        let getOption = (opts: CustomOptions, toFile: boolean): CustomOptions | null => {
+            if (!toFile) {
+                // 檢查是否選擇了文本文件
+                if (pnl.lpTextFileTextBox.text !== "" && pnl.meoTextFileTextBox.text !== "") {
+                    alert("請只選擇一種文本格式！");
+                    return null;
                 }
-            } else {
-                return {};        // cancel by user
+                
+                if (pnl.lpTextFileTextBox.text === "" && pnl.meoTextFileTextBox.text === "") {
+                    alert("請選擇一個文本文件！");
+                    return null;
+                }
+
+                if (pnl.lpTextFileTextBox.text !== "") {
+                    // LabelPlus文本文件
+                    let f = new File(pnl.lpTextFileTextBox.text);
+                    if (!f || !f.exists) {
+                        alert(I18n.ERROR_NOT_FOUND_LPTEXT);
+                        return null;
+                    }
+                    let lpFile = lpTextParser(pnl.lpTextFileTextBox.text);
+                    if (lpFile == null) {
+                        alert(I18n.ERROR_PARSER_LPTEXT_FAIL);
+                        return null;
+                    }
+                    opts.lpTextFilePath = pnl.lpTextFileTextBox.text;
+                } else {
+                    // Meo格式文本文件
+                    let f = new File(pnl.meoTextFileTextBox.text);
+                    if (!f || !f.exists) {
+                        alert(I18n.ERROR_NOT_FOUND_MEOTEXT);
+                        return null;
+                    }
+                    let lpFile = meoTextParser(pnl.meoTextFileTextBox.text);
+                    if (lpFile == null) {
+                        alert(I18n.ERROR_PARSER_MEOTEXT_FAIL);
+                        return null;
+                    }
+                    opts.lpTextFilePath = pnl.meoTextFileTextBox.text;
+                }
             }
 
-            // load lptext file
-            let lpFile = lpTextParser(f.fsName);
+            return opts;
+        }
+
+        return {x: xx, y:yy, getOption: getOption};
+    }
+
+    // 提取文本文件加載的通用邏輯
+    private loadTextFile = (f: File, inputPnl: any, outputPnl: any, automationPnl: any, format: string) => {
+        let fl = new Folder(f.path);
+        inputPnl.sourceTextBox.text = fl.fsName;
+        outputPnl.targetTextBox.text = fl.fsName + dirSeparator + 'output';
+
+        // 設置涂白文件夾路徑
+        let inpaintedPath = fl.fsName + dirSeparator + 'inpainted';
+        if (FolderIsExists(inpaintedPath)) {
+            inputPnl.overlayManualSourceTextBox.text = inpaintedPath;
+        }
+
+        // detect images source sub dir
+        let src_subdirs = ["images", "image", "img", "source", "圖源"];
+        for (let subdir of src_subdirs) {
+            let dir_path = fl.fsName + dirSeparator + subdir;
+            if (FolderIsExists(dir_path)) {
+                log("detect images source: " + dir_path);
+                inputPnl.sourceTextBox.text = dir_path;
+                break;
+            }
+        }
+
+        // 根據格式加載文本文件
+        let lpFile: LpFile | null = null;
+        if (format === 'labelplus') {
+            lpFile = lpTextParser(f.fsName);
             if (lpFile === null) {
                 alert(I18n.ERROR_PARSER_LPTEXT_FAIL);
-                return {};
+                return;
             }
+        } else if (format === 'meo') {
+            lpFile = meoTextParser(f.fsName);
+            if (lpFile === null) {
+                alert(I18n.ERROR_PARSER_MEOTEXT_FAIL);
+                return;
+            }
+        }
+
+        if (lpFile) {
             this.lpFile = lpFile;
             this.allPanelEnable(true);
 
@@ -161,29 +256,7 @@ class LabelPlusInput extends GenericUI {
                     doPnl.addGroupList[i] = doPnl.addGroupList.add('item', g, i);
                 }
             }
-            return {};
-        };
-
-        let getOption = (opts: CustomOptions, toFile: boolean): CustomOptions | null => {
-            if (!toFile) {
-                // labeplus text file
-                let f = new File(pnl.lpTextFileTextBox.text);
-                if (!f || !f.exists) {
-                    alert(I18n.ERROR_NOT_FOUND_LPTEXT);
-                    return null;
-                }
-                let lpFile = lpTextParser(pnl.lpTextFileTextBox.text);
-                if (lpFile == null) {
-                    alert(I18n.ERROR_PARSER_LPTEXT_FAIL);
-                    return null;
-                }
-                opts.lpTextFilePath = pnl.lpTextFileTextBox.text;
-            }
-
-            return opts;
         }
-
-        return {x: xx, y:yy, getOption: getOption};
     }
 
     private uiSettingsPanel = (pnl: any): PanelDesc => {
@@ -825,10 +898,10 @@ class LabelPlusInput extends GenericUI {
 
         this.optPickers = [];
 
-        // lp text select
+        // lp text select (增加高度以容納兩個輸入框)
         ret = this.uiLpTextSelect(pnl);
         this.addToPickerList(ret.getOption);
-        yy += 40;
+        yy += 65; // 原本是40，現在增加到65
         yOfs = yy;
 
         // setting save/load
@@ -868,7 +941,7 @@ class LabelPlusInput extends GenericUI {
         // help bar
         xx = this.winRect.w - 220;
         yy = 5;
-        this.HelpPnl = pnl.add('panel', [ , 0, "", [xx, yy, xx + 200, yy + 25]]);
+        this.HelpPnl = pnl.add('panel', [xx, yy, xx + 200, yy + 25]);
         ret = this.uiHelpPanel(this.HelpPnl);
 
         this.allPanelEnable(this.lpFile != null);

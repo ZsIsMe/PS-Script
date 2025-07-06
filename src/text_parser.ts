@@ -20,6 +20,115 @@ export interface LpFile {
 	images: LpLabelDict;
 };
 
+// Meo格式的接口定義
+export interface MeoGroupInfo {
+    name: string;
+    color: string;
+}
+
+export interface MeoLabel {
+    index: number;
+    groupId: number;
+    x: number;
+    y: number;
+    text: string;
+}
+
+export interface MeoFile {
+    version: number[];
+    comment: string;
+    groupList: MeoGroupInfo[];
+    transMap: {
+        [key: string]: MeoLabel[]
+    };
+}
+
+// Meo格式JSON解析函數
+export function meoTextParser(path: string): LpFile | null
+{
+    var f = new File(path);
+    if (!f || !f.exists) {
+        log_err("MeoTextReader: file " + path + " not exists");
+        return null;
+    }
+
+    try {
+        // 打開並讀取文件
+        f.open("r", "TEXT", "????");
+        f.lineFeed = "unix";
+        f.encoding = 'UTF-8';
+        var json = f.read();
+        f.close();
+
+        // 解析JSON
+        var meoData: MeoFile = (new Function('return ' + json))();
+        
+        // 檢查是否為有效的Meo格式
+        if (!meoData.groupList || !meoData.transMap) {
+            log_err("Invalid Meo format: missing groupList or transMap");
+            return null;
+        }
+
+        // 記錄Meo格式的額外信息
+        log("Meo format detected:");
+        log("  version: " + (meoData.version ? meoData.version.join('.') : 'unknown'));
+        log("  comment: " + (meoData.comment || 'none'));
+        log("  groups: " + meoData.groupList.length);
+
+        // 轉換為LpFile格式
+        let groups: string[] = [];
+        for (let i = 0; i < meoData.groupList.length; i++) {
+            groups.push(meoData.groupList[i].name);
+            // 記錄分組顏色信息（雖然LabelPlus不使用，但記錄到日誌中）
+            log("  group[" + i + "]: " + meoData.groupList[i].name + " (color: " + meoData.groupList[i].color + ")");
+        }
+
+        let images: LpLabelDict = {};
+        for (let filename in meoData.transMap) {
+            let meoLabels = meoData.transMap[filename];
+            let lpLabels: LpLabel[] = [];
+            
+            // 按照原始index排序，以保持標籤順序
+            meoLabels.sort((a, b) => a.index - b.index);
+            
+            for (let j = 0; j < meoLabels.length; j++) {
+                let meoLabel = meoLabels[j];
+                
+                // 修正：直接使用groupId作為索引（與原始Meo腳本一致）
+                let groupName = (meoLabel.groupId >= 0 && meoLabel.groupId < meoData.groupList.length) 
+                    ? groups[meoLabel.groupId]
+                    : "未知分組";
+                
+                // 修正：將空格替換為換行符（與原始Meo腳本一致，只替換第一個空格）
+                let processedText = meoLabel.text.replace(" ", "\n");
+                
+                let lpLabel: LpLabel = {
+                    x: meoLabel.x,
+                    y: meoLabel.y,
+                    contents: processedText,
+                    group: groupName
+                };
+                lpLabels.push(lpLabel);
+                
+                // 記錄原始index信息（用於調試）
+                log("  label[" + filename + "#" + meoLabel.index + "]: '" + meoLabel.text + "' -> '" + processedText + "' @(" + meoLabel.x + "," + meoLabel.y + ") group:" + groupName);
+            }
+            images[filename] = lpLabels;
+        }
+
+        let result: LpFile = {
+            path: path,
+            groups: groups,
+            images: images
+        };
+
+        return result;
+    } catch (e) {
+        log_err("MeoTextReader: parse error - " + e.toString());
+        return null;
+    }
+}
+
 export function lpTextParser(path: string): LpFile | null
 {
     var f = new File(path);

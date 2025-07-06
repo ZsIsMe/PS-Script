@@ -164,7 +164,14 @@ function importImage(img: ImageInfo): boolean
     // remove unnecessary Layer/LayerSet
     log('remove unnecessary Layer/LayerSet...');
     for (var layer of img.ws.pendingDelLayerList) { // Layer
-        layer.remove();
+        try {
+            // 檢查圖層是否仍然有效（通過訪問其屬性）
+            let layerName = layer.name; // 如果圖層無效，這裡會拋出異常
+            layer.remove();
+            log("removed layer: " + layerName);
+        } catch (e) {
+            log("layer already removed or invalid: " + e.toString());
+        }
     }
     for (let k in img.ws.groups) { // LayerSet
         if (img.ws.groups[k].layerSet !== undefined) {
@@ -267,6 +274,10 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
         catch {
             dialogOverlayLayer = wsDoc.artLayers.add();
             dialogOverlayLayer.name = TEMPLATE_LAYER.DIALOG_OVERLAY;
+        }
+        // 如果用戶沒有啟用對話框涂白功能，將此圖層加入待刪除列表
+        if (!opts.dialogOverlayLabelGroups || opts.dialogOverlayLabelGroups === "") {
+            pendingDelLayerList.push(dialogOverlayLayer); // 加入待刪除列表
         }
         // overlay manual layer template
         try { overlayManualLayer = wsDoc.artLayers.getByName(TEMPLATE_LAYER.OVERLAY_MANUAL); }
@@ -478,13 +489,50 @@ export function importFiles(custom_opts: CustomOptions): boolean
     log(Stdlib.listProps(opts));
     log("Properties end   ------------------");
 
-    //解析LabelPlus文本
-    let lpFile = lpTextParser(opts.lpTextFilePath);
-    if (lpFile == null) {
-        log_err("error: " + I18n.ERROR_PARSER_LPTEXT_FAIL);
-        return false;
+    //解析文本文件（支援LabelPlus和Meo格式）
+    let lpFile: LpFile | null = null;
+    let filePath = opts.lpTextFilePath;
+    let fileExtension = filePath.substring(filePath.lastIndexOf("."), filePath.length).toLowerCase();
+    
+    // 根據文件名判斷是否為Meo格式
+    let isMeoFormat = false;
+    if (fileExtension === '.json') {
+        // 簡單檢查：如果是JSON文件，嘗試讀取部分內容判斷格式
+        try {
+            let f = new File(filePath);
+            if (f && f.exists) {
+                f.open("r", "TEXT", "????");
+                f.lineFeed = "unix";
+                f.encoding = 'UTF-8';
+                let content = f.read();
+                f.close();
+                
+                // 如果包含transMap和groupList，判斷為Meo格式
+                if (content.indexOf('"transMap"') !== -1 && content.indexOf('"groupList"') !== -1) {
+                    isMeoFormat = true;
+                }
+            }
+        } catch (e) {
+            log("無法預檢查文件格式，使用默認解析器");
+        }
     }
-    log("parse lptext done...");
+    
+    // 選擇合適的解析器
+    if (isMeoFormat) {
+        lpFile = meoTextParser(filePath);
+        if (lpFile == null) {
+            log_err("error: " + I18n.ERROR_PARSER_MEOTEXT_FAIL);
+            return false;
+        }
+        log("parse meo format text done...");
+    } else {
+        lpFile = lpTextParser(filePath);
+        if (lpFile == null) {
+            log_err("error: " + I18n.ERROR_PARSER_LPTEXT_FAIL);
+            return false;
+        }
+        log("parse labelplus text done...");
+    }
 
     // 替换文本解析
     if (opts.textReplace) {
