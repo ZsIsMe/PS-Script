@@ -1,0 +1,24 @@
+{
+  "version": [
+    1,
+    0
+  ],
+  "comment": "可使用 LabelPlus Photoshop 脚本导入 psd 中",
+  "groupList": [
+      {
+        "name": "框内",
+        "color": "1A436A"
+      }
+    ],
+  "transMap": {
+    "label_plus_test_bg.png": [
+      {
+        "index": 1,
+        "groupId": 0,
+        "x": 0.1,
+        "y": 0.1,
+        "text": "測試測試\nAbcd!\n~~~~~~"
+      }
+    ]
+  }
+}

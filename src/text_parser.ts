@@ -100,7 +100,7 @@ export function meoTextParser(path: string): LpFile | null
                     : "未知分組";
                 
                 // 修正：將空格替換為換行符（與原始Meo腳本一致，只替換第一個空格）
-                let processedText = meoLabel.text.replace(" ", "\n");
+                let processedText = meoLabel.text.replace(/\n/g, "\r");
                 
                 let lpLabel: LpLabel = {
                     x: meoLabel.x,
