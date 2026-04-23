@@ -42,6 +42,8 @@ namespace I18n {
     export var LABEL_TEXT_DIRECTION: string = "文本方向:";
     export var LIST_TEXT_DIT_ITEMS: string[] = ["默認", "水平", "垂直"];
     export var CHECKBOX_NO_LAYER_GROUP: string = "不使用圖層分組";
+    export var CHECKBOX_CENTER_ALIGN: string = "居中對齊";
+    export var CHECKBOX_USE_MEO_FONT_SIZE: string = "Meo 文字樣式（字體、大小、方向、顏色、描邊）";
 
     export var CHECKBOX_DIALOG_OVERLAY: string = "執行\"對話框涂白\"";
     export var LABEL_DIALOG_OVERLAY_GROUP: string = "指定分組(如: group1,group2)：";
@@ -87,8 +89,8 @@ namespace I18n {
         RB_TEMPLATE_AUTO = "Auto";
         RB_TEMPLATE_NO = "No Template";
         RB_TEMPLATE_CUSTOM = "Custom Template";
-        LABEL_TEXT_FILE = "LabelPlus Text:";
-        LABEL_MEO_FILE = "Meo Format Text:";
+        LABEL_TEXT_FILE = "Text file";
+        LABEL_MEO_FILE = "Meo format file";
         LABEL_SOURCE = "Image Source:";
         LABEL_OVERLAY_MANUAL_SOURCE = "Overlay Manual Source:";
         LABEL_TARGET = "Output Folder:";
@@ -96,7 +98,7 @@ namespace I18n {
         LABEL_SELECT_IMG = "Select Image";
         LABEL_SELECT_GROUP = "Select Group";
         LABEL_SELECT_TIP = "Tip: Push [Ctrl] key to select/cancel one item, push [Shift] key to select multiple items.";
-        CHECKBOX_OUTPUT_LABEL_INDEX = "Output Label Number";
+        CHECKBOX_OUTPUT_LABEL_INDEX = "Output label index";
         CHECKBOX_TEXT_REPLACE = "Text Replace(e.g. \"A->B|C->D\")";
         CHECKBOX_IGNORE_NO_LABEL_IMG = "Ignore Images With No Label";
         CHECKBOX_MATCH_IMG_BY_ORDER = "Match Image Source By Order";
@@ -104,12 +106,14 @@ namespace I18n {
         LABEL_OUTPUT_FILE_TYPE = "Output File Type:";
         CHECKBOX_REPLACE_IMG_SUFFIX = "Replace Image Suffix";
         CHECKBOX_RUN_ACTION = "Execute Action:";
-        CHECKBOX_NOT_CLOSE = "Do Not Close File";
+        CHECKBOX_NOT_CLOSE = "Don't close image";
         CHECKBOX_SET_FONT = "Font";
         CHECKBOX_SET_LEADING = "Leading";
         LABEL_TEXT_DIRECTION = "Text Direction:";
         LIST_TEXT_DIT_ITEMS = [ "Default", "Horizontal", "Vertical" ];
-        CHECKBOX_NO_LAYER_GROUP = "Layer Not Grouping";
+        CHECKBOX_NO_LAYER_GROUP = "Don't create layer group";
+        CHECKBOX_CENTER_ALIGN = "Center align after action";
+        CHECKBOX_USE_MEO_FONT_SIZE = "Meo text style (font, size, orientation, color, stroke)";
         CHECKBOX_DIALOG_OVERLAY = "Execute \"Dialog Overlay\"";
         LABEL_DIALOG_OVERLAY_GROUP = "Specified Groups(like: group1,group2)：";
         LABEL_DIALOG_OVERLAY_TOLERANCE = "Tolerance:";

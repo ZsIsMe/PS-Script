@@ -22,6 +22,14 @@ interface LabelInfo {
     y: number;
     group: string;
     contents: string;
+    fontSize?: number;
+    orientation?: string;
+    font?: string;
+    fontStyle?: string;
+    color?: string;
+    strokeColor?: string;
+    strokeWeight?: number;
+    rotation?: number;
 };
 
 interface ImageWorkspace {
@@ -69,10 +77,28 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
 
     // 确定文字方向
     let textDir: Direction | undefined;
-    switch (opts.textDirection) {
-    case OptionTextDirection.Keep:       textDir = undefined; break;
-    case OptionTextDirection.Horizontal: textDir = Direction.HORIZONTAL; break;
-    case OptionTextDirection.Vertical:   textDir = Direction.VERTICAL; break;
+    
+    // 如果標籤提供了方向，且用戶啟用了該選項，則優先使用
+    if (opts.useMeoFontSize && label.orientation) {
+        if (label.orientation === "horizontal") {
+            textDir = Direction.HORIZONTAL;
+        } else if (label.orientation === "vertical") {
+            textDir = Direction.VERTICAL;
+        } else {
+            // 如果方向值無效，使用全域設定
+            switch (opts.textDirection) {
+            case OptionTextDirection.Keep:       textDir = undefined; break;
+            case OptionTextDirection.Horizontal: textDir = Direction.HORIZONTAL; break;
+            case OptionTextDirection.Vertical:   textDir = Direction.VERTICAL; break;
+            }
+        }
+    } else {
+        // 使用全域設定
+        switch (opts.textDirection) {
+        case OptionTextDirection.Keep:       textDir = undefined; break;
+        case OptionTextDirection.Horizontal: textDir = Direction.HORIZONTAL; break;
+        case OptionTextDirection.Vertical:   textDir = Direction.VERTICAL; break;
+        }
     }
 
     // 导出文本，设置的优先级大于模板，无模板时做部分额外处理
@@ -85,13 +111,39 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         lending: opts.textLeading ? opts.textLeading : undefined,
     };
 
-    // 使用模板时，用户不设置字体大小，不做更改；不使用模板时，如果用户不设置大小，自动调整到合适的大小
-    if (opts.docTemplate === OptionDocTemplate.No) {
-        let proper_size = UnitValue(min(img.ws.doc.height.as("pt"), img.ws.doc.height.as("pt")) / 90.0, "pt");
-        o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : proper_size;
+    // 如果標籤提供了字體大小，且用戶啟用了該選項，則優先使用
+    if (opts.useMeoFontSize && label.fontSize && label.fontSize > 0) {
+        o.size = UnitValue(label.fontSize, "pt");
     } else {
-        o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : undefined;
+        // 否則，使用現有的邏輯
+        if (opts.docTemplate === OptionDocTemplate.No) {
+            let proper_size = UnitValue(min(img.ws.doc.height.as("pt"), img.ws.doc.height.as("pt")) / 90.0, "pt");
+            o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : proper_size;
+        } else {
+            o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : undefined;
+        }
     }
+
+    // 啟用 Meo 樣式時，套用標籤級的字體 / 風格 / 顏色 / 描邊（優先於模板）
+    if (opts.useMeoFontSize) {
+        if (label.font) {
+            o.font = label.font; // 直接使用 PostScript name
+        }
+        if (label.fontStyle) {
+            o.fontStyle = label.fontStyle;
+        }
+        if (label.color) {
+            o.color = label.color;
+        }
+        if (label.strokeColor && label.strokeWeight && label.strokeWeight > 0) {
+            o.strokeColor = label.strokeColor;
+            o.strokeWeight = label.strokeWeight;
+        }
+        if (typeof label.rotation === "number" && !isNaN(label.rotation)) {
+            o.rotation = label.rotation;
+        }
+    }
+
     textLayer = newTextLayer(img.ws.doc, label.contents, label.x, label.y, o);
 
     // 执行动作,名称为分组名
@@ -100,6 +152,35 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         let result = doAction(label.group, opts.actionGroup);
         log("run action " + label.group + "[" + opts.actionGroup + "]..." + result ? "done" : "fail");
     }
+
+    // Center the layer after the action has been applied, so the bounds are correct
+    if (opts.centerAlign) {
+        var ru = app.preferences.rulerUnits;
+        app.preferences.rulerUnits = Units.PIXELS;
+        try {
+            var bounds = textLayer.bounds;
+            var layerWidth = bounds[2].as('px') - bounds[0].as('px');
+            var layerHeight = bounds[3].as('px') - bounds[1].as('px');
+            
+            // Calculate the target center position in absolute coordinates
+            var targetCenterX = img.ws.doc.width.as("px") * label.x;
+            var targetCenterY = img.ws.doc.height.as("px") * label.y;
+            
+            // Calculate current center position
+            var currentCenterX = bounds[0].as('px') + layerWidth / 2;
+            var currentCenterY = bounds[1].as('px') + layerHeight / 2;
+            
+            // Calculate the offset needed to move current center to target center
+            var deltaX = targetCenterX - currentCenterX;
+            var deltaY = targetCenterY - currentCenterY;
+            
+            textLayer.translate(UnitValue(deltaX, 'px'), UnitValue(deltaY, 'px'));
+        }
+        finally {
+            app.preferences.rulerUnits = ru;
+        }
+    }
+    
     return true;
 }
 
@@ -144,6 +225,14 @@ function importImage(img: ImageInfo): boolean
             y: l.y,
             group: l.group,
             contents: l.contents,
+            fontSize: l.fontSize,
+            orientation: l.orientation,
+            font: l.font,
+            fontStyle: l.fontStyle,
+            color: l.color,
+            strokeColor: l.strokeColor,
+            strokeWeight: l.strokeWeight,
+            rotation: l.rotation
         };
         log("import label " + label_info.index + "...");
         importLabel(img, label_info);
@@ -621,11 +710,90 @@ export function importFiles(custom_opts: CustomOptions): boolean
 interface TextInputOptions {
     template?: ArtLayer;     // 文本图层模板
     font?: string;
+    fontStyle?: string;      // "Regular" / "Bold" / "Italic" / "Bold Italic"
     size?: UnitValue;
     direction?: Direction;
     lgroup?: LayerSet;
     lending?: number;        // 自动行距
+    color?: string;          // 文字颜色 (HEX，例 "#000000")
+    strokeColor?: string;    // 描边颜色 (HEX)
+    strokeWeight?: number;   // 描边宽度 (px)
+    rotation?: number;       // 文字旋转角度（度），任意值會被正規化到 (-180, 180]
 };
+
+// 將任意角度正規化到 (-180, 180] 區間
+function normalizeRotation(deg: number): number
+{
+    let r = deg % 360;
+    if (r > 180) r -= 360;
+    if (r <= -180) r += 360;
+    return r;
+}
+
+// 將 HEX 字串解析成 SolidColor，失敗時回傳 null
+function parseHexColor(hex: string): SolidColor | null
+{
+    if (!hex) return null;
+    let h = hex.replace(/^#/, "").trim();
+    // 支援 3 位簡寫
+    if (h.length === 3) {
+        h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+    }
+    if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) {
+        return null;
+    }
+    let c = new SolidColor();
+    c.rgb.hexValue = h;
+    return c;
+}
+
+// 為當前圖層套用「描邊」圖層樣式（透過 ActionDescriptor）
+// 注意：因 ExtendScript 的 TextItem 沒有描邊屬性，必須用 Layer Style 實現
+function applyStrokeLayerStyle(strokeColor: string, strokeWeightPx: number): void
+{
+    let color = parseHexColor(strokeColor);
+    if (!color) {
+        log_err("applyStrokeLayerStyle: invalid stroke color " + strokeColor);
+        return;
+    }
+
+    try {
+        let cTID = (s: string) => app.charIDToTypeID(s);
+
+        let ref = new ActionReference();
+        ref.putProperty(cTID("Prpr"), cTID("Lefx"));
+        ref.putEnumerated(cTID("Lyr "), cTID("Ordn"), cTID("Trgt"));
+
+        let lefx = new ActionDescriptor();
+        let scl = new ActionDescriptor();
+        scl.putUnitDouble(cTID("Scl "), cTID("#Prc"), 100);
+        lefx.putObject(cTID("Scl "), cTID("Scl "), scl);
+
+        let frfx = new ActionDescriptor();
+        frfx.putBoolean(cTID("enab"), true);
+        frfx.putEnumerated(cTID("Styl"), cTID("FStl"), cTID("OutF"));   // 位置：外側
+        frfx.putEnumerated(cTID("PntT"), cTID("FrFl"), cTID("SClr"));   // 填充：純色
+        frfx.putEnumerated(cTID("Md  "), cTID("BlnM"), cTID("Nrml"));   // 混合模式：正常
+        frfx.putUnitDouble(cTID("Opct"), cTID("#Prc"), 100);
+        frfx.putUnitDouble(cTID("Sz  "), cTID("#Pxl"), strokeWeightPx);
+
+        let clr = new ActionDescriptor();
+        clr.putDouble(cTID("Rd  "), color.rgb.red);
+        clr.putDouble(cTID("Grn "), color.rgb.green);
+        clr.putDouble(cTID("Bl  "), color.rgb.blue);
+        frfx.putObject(cTID("Clr "), cTID("RGBC"), clr);
+
+        lefx.putObject(cTID("FrFX"), cTID("FrFX"), frfx);
+
+        let desc = new ActionDescriptor();
+        desc.putReference(cTID("null"), ref);
+        desc.putObject(cTID("T   "), cTID("Lefx"), lefx);
+
+        app.executeAction(cTID("setd"), desc, DialogModes.NO);
+    } catch (e) {
+        log_err("applyStrokeLayerStyle failed: " + e.toString());
+    }
+}
 
 // 创建文本图层
 function newTextLayer(doc: Document, text: string, x: number, y: number, topts: TextInputOptions = {}): ArtLayer
@@ -654,6 +822,28 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
     if (topts.direction)
         textItemRef.direction = topts.direction;
 
+    // 文字風格（Bold / Italic）：當 PostScript 字體本身已包含風格時，
+    // 此處主要作為輔助；若樣式包含 "Bold"/"Italic" 才套用 fauxBold/fauxItalic
+    if (topts.fontStyle) {
+        let style = topts.fontStyle.toLowerCase();
+        try {
+            (<any>textItemRef).fauxBold = (style.indexOf("bold") !== -1);
+            (<any>textItemRef).fauxItalic = (style.indexOf("italic") !== -1);
+        } catch (e) {
+            log("fauxBold/fauxItalic not supported: " + e.toString());
+        }
+    }
+
+    // 文字顏色
+    if (topts.color) {
+        let c = parseHexColor(topts.color);
+        if (c) {
+            textItemRef.color = c;
+        } else {
+            log_err("invalid text color: " + topts.color);
+        }
+    }
+
     textItemRef.position = Array(UnitValue(doc.width.as("px") * x, "px"), UnitValue(doc.height.as("px") * y, "px"));
 
     if (topts.lgroup)
@@ -666,6 +856,30 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
 
     artLayerRef.name     = text;
     textItemRef.contents = text;
+
+    // 旋轉：在內容寫入後、描邊套用前進行；以圖層中心為錨點
+    // 描邊圖層樣式會跟隨變換，所以順序對描邊結果沒有影響
+    //
+    // 旋轉方向慣例轉換（重要）：
+    //   - 來源資料 (InDesign 匯出)：正值 = 逆時針，負值 = 順時針
+    //   - Photoshop ArtLayer.rotate()：正值 = 順時針，負值 = 逆時針
+    //   兩者方向相反，必須取負後再傳入 PS
+    if (typeof topts.rotation === "number" && !isNaN(topts.rotation)) {
+        let deg = normalizeRotation(topts.rotation);
+        if (deg !== 0) {
+            try {
+                artLayerRef.rotate(-deg, AnchorPosition.MIDDLECENTER);
+            } catch (e) {
+                log_err("rotate text layer failed: " + e.toString());
+            }
+        }
+    }
+
+    // 描邊樣式：必須在文本內容寫入後再套用，否則邊界尚未定型
+    if (topts.strokeColor && topts.strokeWeight && topts.strokeWeight > 0) {
+        doc.activeLayer = artLayerRef;
+        applyStrokeLayerStyle(topts.strokeColor, topts.strokeWeight);
+    }
 
     return artLayerRef;
 }

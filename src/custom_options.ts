@@ -30,9 +30,11 @@ export class CustomOptions {
     ignoreNoLabelImg: boolean = false; // ignore images with no label
     noLayerGroup: boolean = false; // do not create group in document for text layers
     notClose: boolean = false; // do not close image document
+    centerAlign: boolean = false; // 是否居中对齐
+    useMeoFontSize: boolean = false; // 是否使用 Meo JSON 中的字體大小和方向
 
     font: string = ""; // set font if it is not empty
-    fontSize: number = 0; // set font size if neq 0
+    fontSize: number = 0; // set font size if it is not 0
     textLeading: number = 0; // set auto leading value if neq 0, unit is percent
     textReplace: string = ""; // run text replacing function, if the expression is not empty
     outputLabelIndex: boolean = false; // if true, output label index as text layer

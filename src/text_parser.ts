@@ -8,7 +8,15 @@ export interface LpLabel {
     y: number;
     contents: string;
     group: string;
-};
+    fontSize?: number; // 增加可選的字體大小屬性
+    orientation?: string; // 增加可選的文字方向屬性（"horizontal" 或 "vertical"）
+    font?: string; // PostScript name，例如 "SourceHanSansSC-Bold"
+    fontStyle?: string; // 字體風格，例如 "Regular"、"Bold"、"Italic"、"Bold Italic"
+    color?: string; // 文字顏色（HEX 字串，例如 "#000000"）
+    strokeColor?: string; // 描邊顏色（HEX 字串，空字串表示不描邊）
+    strokeWeight?: number; // 描邊寬度（單位：px），0 表示不描邊
+    rotation?: number; // 文字旋轉角度（度，InDesign 慣例：正值=逆時針，負值=順時針），會正規化到 (-180, 180]
+}
 
 export type LpLabelDict = {
     [key: string]: LpLabel[]
@@ -32,6 +40,15 @@ export interface MeoLabel {
     x: number;
     y: number;
     text: string;
+    "font-size"?: number; // 增加可選的字體大小屬性
+    orientation?: string; // 增加可選的文字方向屬性（"horizontal" 或 "vertical"）
+    "font-family"?: string; // 字體名稱（PostScript name，例如 "SourceHanSansSC-Bold"）
+    font?: string; // 兼容欄位：部分 Meo JSON 用 "font" 取代 "font-family"
+    "font-style"?: string; // 字體風格（"Regular"、"Bold"、"Italic"、"Bold Italic"）
+    color?: string; // 文字顏色（HEX，如 "#000000"）
+    "stroke-color"?: string; // 描邊顏色（HEX，空字串表示不描邊）
+    "stroke-weight"?: number; // 描邊寬度（px，0 表示不描邊）
+    rotation?: number; // 文字旋轉角度（度，InDesign 慣例：正值=逆時針，負值=順時針）
 }
 
 export interface MeoFile {
@@ -106,7 +123,15 @@ export function meoTextParser(path: string): LpFile | null
                     x: meoLabel.x,
                     y: meoLabel.y,
                     contents: processedText,
-                    group: groupName
+                    group: groupName,
+                    fontSize: meoLabel["font-size"], // 傳遞字體大小
+                    orientation: meoLabel.orientation, // 傳遞文字方向
+                    font: meoLabel["font-family"] || meoLabel.font, // 兼容兩種欄位名
+                    fontStyle: meoLabel["font-style"],
+                    color: meoLabel.color,
+                    strokeColor: meoLabel["stroke-color"],
+                    strokeWeight: meoLabel["stroke-weight"],
+                    rotation: meoLabel.rotation
                 };
                 lpLabels.push(lpLabel);
                 

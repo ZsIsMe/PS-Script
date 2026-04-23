@@ -556,7 +556,18 @@ class LabelPlusInput extends GenericUI {
 
         // do not create layer group
         pnl.noLayerGroupCheckBox = pnl.add('checkbox', [xx, yy, xx + 250, yy + 20], I18n.CHECKBOX_NO_LAYER_GROUP);
+        xx = xOfs;
         yy += 23;
+
+        // center align
+        pnl.centerAlignCheckBox = pnl.add('checkbox', [xx, yy, xx + 250, yy + 20], I18n.CHECKBOX_CENTER_ALIGN);
+        xx += 250;
+
+        // use meo font size
+        pnl.useMeoFontSizeCheckBox = pnl.add('checkbox', [xx, yy, xx + 250, yy + 20], I18n.CHECKBOX_USE_MEO_FONT_SIZE);
+        xx = xOfs;
+        yy += 23;
+
 
         let opts = this.opts;
         if (opts.outputLabelIndex !== undefined) {
@@ -578,6 +589,14 @@ class LabelPlusInput extends GenericUI {
             pnl.noLayerGroupCheckBox.value = opts.noLayerGroup;
             Emit(pnl.noLayerGroupCheckBox.onClick);
         }
+        if (opts.centerAlign !== undefined) {
+            pnl.centerAlignCheckBox.value = opts.centerAlign;
+            Emit(pnl.centerAlignCheckBox.onClick);
+        }
+        if (opts.useMeoFontSize !== undefined) {
+            pnl.useMeoFontSizeCheckBox.value = opts.useMeoFontSize;
+            Emit(pnl.useMeoFontSizeCheckBox.onClick);
+        }
 
         let getOption = (opts: CustomOptions, toFile: boolean): CustomOptions | null => {
             if (!toFile) {
@@ -596,6 +615,8 @@ class LabelPlusInput extends GenericUI {
             opts.ignoreNoLabelImg = pnl.ignoreNoLabelImgCheckBox.value;
             opts.notClose = pnl.notCloseCheckBox.value;
             opts.noLayerGroup = pnl.noLayerGroupCheckBox.value;
+            opts.centerAlign = pnl.centerAlignCheckBox.value;
+            opts.useMeoFontSize = pnl.useMeoFontSizeCheckBox.value;
             return opts;
         }
 
@@ -921,10 +942,10 @@ class LabelPlusInput extends GenericUI {
         yy = yOfs;
 
         // output options
-        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 120]);
+        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 145]);
         ret = this.uiOutputPanel(this.outputPnl);
         this.addToPickerList(ret.getOption);
-        yy += 130;
+        yy += 155;
 
         // style
         this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 170]);
