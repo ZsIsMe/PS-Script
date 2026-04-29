@@ -144,6 +144,24 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         }
     }
 
+    // 直排「標準垂直羅馬對齊方式」：對指定字符（預設 ?!）套用直立顯示
+    // 僅在最終文字方向為直排時才有意義
+    if (textDir === Direction.VERTICAL && opts.verticalRomanChars) {
+        o.isVertical = true;
+        o.verticalRomanChars = opts.verticalRomanChars;
+    }
+    if (textDir === Direction.VERTICAL && opts.tateChuYokoPatterns) {
+        o.isVertical = true;
+        o.tateChuYokoPatterns = opts.tateChuYokoPatterns;
+    }
+
+    // 比例間距 (Tsume / mojiZume)：對指定字符套用百分比擠壓
+    // 直排/橫排都生效；百分比 10~90 對應 mojiZume 0.10~0.90
+    if (opts.tsumeChars && typeof opts.tsumePercent === "number" && opts.tsumePercent > 0) {
+        o.tsumeChars = opts.tsumeChars;
+        o.tsumePercent = opts.tsumePercent;
+    }
+
     textLayer = newTextLayer(img.ws.doc, label.contents, label.x, label.y, o);
 
     // 执行动作,名称为分组名
@@ -719,6 +737,11 @@ interface TextInputOptions {
     strokeColor?: string;    // 描边颜色 (HEX)
     strokeWeight?: number;   // 描边宽度 (px)
     rotation?: number;       // 文字旋转角度（度），任意值會被正規化到 (-180, 180]
+    verticalRomanChars?: string; // 直排時對這些字符套用「標準直立」(baselineDirection: withStream)
+    tateChuYokoPatterns?: string; // 直排時自動匹配並套用「直排內橫排」的文本片段（以 | 分隔）
+    isVertical?: boolean;    // 文本最終方向是否為直排（用來判斷是否套用 verticalRomanChars）
+    tsumeChars?: string;     // 套用「比例間距 / Tsume」的字符列表
+    tsumePercent?: number;   // 比例間距百分比 10~90（對應 mojiZume 0.10~0.90）
 };
 
 // 將任意角度正規化到 (-180, 180] 區間
@@ -795,6 +818,258 @@ function applyStrokeLayerStyle(strokeColor: string, strokeWeightPx: number): voi
     }
 }
 
+// 深複製 ActionDescriptor（保留所有屬性與型別，供修改 textStyleRange 使用）
+function cloneActionDescriptor(src: ActionDescriptor): ActionDescriptor
+{
+    try {
+        let stream = (<any>src).toStream();
+        let cloned = new ActionDescriptor();
+        (<any>cloned).fromStream(stream);
+        return cloned;
+    } catch (e) {
+        // 舊版 Photoshop 若不支援 stream clone，退回逐項複製。
+    }
+
+    let dst = new ActionDescriptor();
+    for (let i = 0; i < src.count; i++) {
+        let key = src.getKey(i);
+        let type = src.getType(key);
+        switch (type) {
+            case DescValueType.BOOLEANTYPE:
+                dst.putBoolean(key, src.getBoolean(key)); break;
+            case DescValueType.STRINGTYPE:
+                dst.putString(key, src.getString(key)); break;
+            case DescValueType.INTEGERTYPE:
+                dst.putInteger(key, src.getInteger(key)); break;
+            case DescValueType.DOUBLETYPE:
+                dst.putDouble(key, src.getDouble(key)); break;
+            case DescValueType.UNITDOUBLE:
+                dst.putUnitDouble(key, src.getUnitDoubleType(key), src.getUnitDoubleValue(key)); break;
+            case DescValueType.ENUMERATEDTYPE:
+                dst.putEnumerated(key, src.getEnumerationType(key), src.getEnumerationValue(key)); break;
+            case DescValueType.OBJECTTYPE:
+                dst.putObject(key, src.getObjectType(key), cloneActionDescriptor(src.getObjectValue(key))); break;
+            case DescValueType.LISTTYPE:
+                dst.putList(key, cloneActionList(src.getList(key))); break;
+            case DescValueType.REFERENCETYPE:
+                dst.putReference(key, src.getReference(key)); break;
+            case DescValueType.CLASSTYPE:
+                dst.putClass(key, src.getClass(key)); break;
+            case DescValueType.RAWTYPE:
+                dst.putData(key, src.getData(key)); break;
+            case DescValueType.ALIASTYPE:
+                dst.putPath(key, src.getPath(key)); break;
+        }
+    }
+    return dst;
+}
+
+function cloneActionList(src: ActionList): ActionList
+{
+    let dst = new ActionList();
+    for (let i = 0; i < src.count; i++) {
+        let type = src.getType(i);
+        if (type === DescValueType.OBJECTTYPE) {
+            dst.putObject(src.getObjectType(i), cloneActionDescriptor(src.getObjectValue(i)));
+        }
+        // 其他型別在 textStyleRange 上下文中極罕見；若遇到請補上
+    }
+    return dst;
+}
+
+// 字符級樣式覆寫規則：對 chars 中出現的每個字符，於 cloned style 上套用 mutate
+interface CharStyleRule {
+    chars: string;
+    mutate: (style: ActionDescriptor) => void;
+}
+
+interface PatternStyleRule {
+    patterns: string;
+    mutate: (style: ActionDescriptor) => void;
+}
+
+interface StyleOverrideRange {
+    from: number;
+    to: number;
+    mutators: Array<(s: ActionDescriptor) => void>;
+}
+
+function splitStylePatterns(patterns: string): string[]
+{
+    let arr: string[] = [];
+    if (!patterns) return arr;
+
+    let parts = patterns.split("|");
+    for (let i = 0; i < parts.length; i++) {
+        if (parts[i] !== "") {
+            arr.push(parts[i]);
+        }
+    }
+    arr.sort((a, b) => {
+        return b.length - a.length;
+    });
+    return arr;
+}
+
+function isRangeCovered(covered: boolean[], from: number, to: number): boolean
+{
+    for (let i = from; i < to; i++) {
+        if (covered[i]) return true;
+    }
+    return false;
+}
+
+function markRangeCovered(covered: boolean[], from: number, to: number): void
+{
+    for (let i = from; i < to; i++) {
+        covered[i] = true;
+    }
+}
+
+function collectPatternStyleRanges(text: string, rules: PatternStyleRule[]): StyleOverrideRange[]
+{
+    let ranges: StyleOverrideRange[] = [];
+    let covered: boolean[] = [];
+    for (let i = 0; i < text.length; i++) {
+        covered[i] = false;
+    }
+
+    for (let r = 0; r < rules.length; r++) {
+        let patterns = splitStylePatterns(rules[r].patterns);
+        let i = 0;
+        while (i < text.length) {
+            let matched = "";
+            for (let p = 0; p < patterns.length; p++) {
+                let pattern = patterns[p];
+                if (pattern.length > 0 && text.substr(i, pattern.length) === pattern && !isRangeCovered(covered, i, i + pattern.length)) {
+                    matched = pattern;
+                    break;
+                }
+            }
+            if (matched !== "") {
+                ranges.push({
+                    from: i,
+                    to: i + matched.length,
+                    mutators: [rules[r].mutate]
+                });
+                markRangeCovered(covered, i, i + matched.length);
+                i += matched.length;
+            } else {
+                i++;
+            }
+        }
+    }
+    return ranges;
+}
+
+// 為當前圖層套用字符/片段級樣式覆寫
+// 一次性讀寫 textKey；多條字符規則命中同一字符時會疊加套用
+//
+// 實作策略：透過 ActionManager 讀取 textKey → 取出 textStyleRange[0] 的預設樣式 →
+// 重建 textStyleRange 列表，命中的字符或片段獨立成 range 並套用對應 mutate
+function applyCharStyleOverrides(text: string, rules: CharStyleRule[], patternRules?: PatternStyleRule[]): void
+{
+    if (!text) return;
+    if ((!rules || rules.length === 0) && (!patternRules || patternRules.length === 0)) return;
+
+    // 片段規則優先保留完整 range，避免直排內橫排被拆成單字符。
+    let ranges: StyleOverrideRange[] = collectPatternStyleRanges(text, patternRules || []);
+    let covered: boolean[] = [];
+    for (let i = 0; i < text.length; i++) {
+        covered[i] = false;
+    }
+    for (let i = 0; i < ranges.length; i++) {
+        markRangeCovered(covered, ranges[i].from, ranges[i].to);
+    }
+
+    // 收集未被片段規則覆蓋的單字符規則。
+    for (let i = 0; i < text.length; i++) {
+        if (covered[i]) continue;
+        let ch = text.charAt(i);
+        let muts: Array<(s: ActionDescriptor) => void> = [];
+        for (let r = 0; r < rules.length; r++) {
+            if (rules[r].chars.indexOf(ch) !== -1) {
+                muts.push(rules[r].mutate);
+            }
+        }
+        if (muts.length > 0) {
+            ranges.push({from: i, to: i + 1, mutators: muts});
+        }
+    }
+    if (ranges.length === 0) return;
+    ranges.sort((a, b) => {
+        return a.from - b.from;
+    });
+
+    try {
+        let cTID = (s: string) => app.charIDToTypeID(s);
+        let sTID = (s: string) => app.stringIDToTypeID(s);
+
+        let getRef = new ActionReference();
+        getRef.putProperty(cTID("Prpr"), sTID("textKey"));
+        getRef.putEnumerated(cTID("Lyr "), cTID("Ordn"), cTID("Trgt"));
+        let layerDesc = app.executeActionGet(getRef);
+        if (!layerDesc.getObjectValue) return;
+        let textKey = layerDesc.getObjectValue(sTID("textKey"));
+
+        let oldRanges = textKey.getList(sTID("textStyleRange"));
+        if (oldRanges.count === 0) return;
+
+        let buildRange = (from: number, to: number, baseStyle: ActionDescriptor, mutators: Array<(s: ActionDescriptor) => void>): ActionDescriptor => {
+            let r = new ActionDescriptor();
+            r.putInteger(sTID("from"), from);
+            r.putInteger(sTID("to"), to);
+            let style = cloneActionDescriptor(baseStyle);
+            for (let i = 0; i < mutators.length; i++) {
+                mutators[i](style);
+            }
+            r.putObject(sTID("textStyle"), sTID("textStyle"), style);
+            return r;
+        };
+
+        let newRanges = new ActionList();
+        for (let oi = 0; oi < oldRanges.count; oi++) {
+            let oldRange = oldRanges.getObjectValue(oi);
+            let from = oldRange.getInteger(sTID("from"));
+            let to = oldRange.getInteger(sTID("to"));
+            let baseStyle = oldRange.getObjectValue(sTID("textStyle"));
+            let cursor = from;
+
+            for (let ri = 0; ri < ranges.length; ri++) {
+                let range = ranges[ri];
+                if (range.to <= from) continue;
+                if (range.from >= to) break;
+
+                let overlapFrom = Math.max(range.from, cursor);
+                let overlapTo = Math.min(range.to, to);
+                if (overlapTo <= overlapFrom) continue;
+
+                if (cursor < overlapFrom) {
+                    newRanges.putObject(sTID("textStyleRange"), buildRange(cursor, overlapFrom, baseStyle, []));
+                }
+                newRanges.putObject(sTID("textStyleRange"), buildRange(overlapFrom, overlapTo, baseStyle, range.mutators));
+                cursor = overlapTo;
+            }
+
+            if (cursor < to) {
+                newRanges.putObject(sTID("textStyleRange"), buildRange(cursor, to, baseStyle, []));
+            }
+        }
+
+        textKey.putList(sTID("textStyleRange"), newRanges);
+
+        let setRef = new ActionReference();
+        setRef.putEnumerated(cTID("Lyr "), cTID("Ordn"), cTID("Trgt"));
+        let setDesc = new ActionDescriptor();
+        setDesc.putReference(cTID("null"), setRef);
+        // Adobe 標準寫法：textLayer 的 class ID 為 CharID "TxLr"
+        setDesc.putObject(cTID("T   "), cTID("TxLr"), textKey);
+        app.executeAction(cTID("setd"), setDesc, DialogModes.NO);
+    } catch (e) {
+        log_err("applyCharStyleOverrides failed: " + e.toString());
+    }
+}
+
 // 创建文本图层
 function newTextLayer(doc: Document, text: string, x: number, y: number, topts: TextInputOptions = {}): ArtLayer
 {
@@ -856,6 +1131,45 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
 
     artLayerRef.name     = text;
     textItemRef.contents = text;
+
+    // 字符/片段級樣式覆寫：直立字符、直排內橫排、比例間距
+    // 必須在文字內容寫入後、旋轉前進行（旋轉前才能正確修改 textKey）
+    {
+        let rules: CharStyleRule[] = [];
+        let patternRules: PatternStyleRule[] = [];
+        let sTID = (s: string) => app.stringIDToTypeID(s);
+
+        if (topts.isVertical && topts.verticalRomanChars) {
+            rules.push({
+                chars: topts.verticalRomanChars,
+                mutate: (s) => {
+                    s.putEnumerated(sTID("baselineDirection"), sTID("baselineDirection"), sTID("withStream"));
+                }
+            });
+        }
+        if (topts.isVertical && topts.tateChuYokoPatterns) {
+            patternRules.push({
+                patterns: topts.tateChuYokoPatterns,
+                mutate: (s) => {
+                    let idBaselineDirection = sTID("baselineDirection");
+                    s.putEnumerated(idBaselineDirection, idBaselineDirection, app.charIDToTypeID("Crs "));
+                }
+            });
+        }
+        if (topts.tsumeChars && typeof topts.tsumePercent === "number" && topts.tsumePercent > 0) {
+            let tsumeValue = topts.tsumePercent / 100;
+            rules.push({
+                chars: topts.tsumeChars,
+                mutate: (s) => {
+                    s.putDouble(sTID("mojiZume"), tsumeValue);
+                }
+            });
+        }
+        if (rules.length > 0 || patternRules.length > 0) {
+            doc.activeLayer = artLayerRef;
+            applyCharStyleOverrides(text, rules, patternRules);
+        }
+    }
 
     // 旋轉：在內容寫入後、描邊套用前進行；以圖層中心為錨點
     // 描邊圖層樣式會跟隨變換，所以順序對描邊結果沒有影響

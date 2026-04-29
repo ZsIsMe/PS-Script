@@ -32,6 +32,10 @@ export class CustomOptions {
     notClose: boolean = false; // do not close image document
     centerAlign: boolean = false; // 是否居中对齐
     useMeoFontSize: boolean = false; // 是否使用 Meo JSON 中的字體大小和方向
+    verticalRomanChars: string = "?!"; // 直排文字中要套用「標準直立」的字符列表
+    tateChuYokoPatterns: string = "!!|!?|?!|??"; // 直排時自動匹配並套用「直排內橫排」的文本片段
+    tsumeChars: string = "「」"; // 套用「比例間距 / Tsume」的字符列表（直排/橫排都生效）；空字串=停用
+    tsumePercent: number = 80; // 比例間距百分比，10~90（對應 Photoshop mojiZume 0.10~0.90）
 
     font: string = ""; // set font if it is not empty
     fontSize: number = 0; // set font size if it is not 0

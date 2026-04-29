@@ -39,6 +39,9 @@ namespace I18n {
     export var CHECKBOX_NOT_CLOSE: string = "不關閉文件";
     export var CHECKBOX_SET_FONT: string = "字體";
     export var CHECKBOX_SET_LEADING: string = "行距";
+    export var CHECKBOX_VERTICAL_ROMAN_CHARS: string = "直立字符(直排時)";
+    export var CHECKBOX_TATE_CHU_YOKO: string = "自動匹配直排內橫排";
+    export var CHECKBOX_TSUME_CHARS: string = "比例間距字符";
     export var LABEL_TEXT_DIRECTION: string = "文本方向:";
     export var LIST_TEXT_DIT_ITEMS: string[] = ["默認", "水平", "垂直"];
     export var CHECKBOX_NO_LAYER_GROUP: string = "不使用圖層分組";
@@ -109,6 +112,9 @@ namespace I18n {
         CHECKBOX_NOT_CLOSE = "Don't close image";
         CHECKBOX_SET_FONT = "Font";
         CHECKBOX_SET_LEADING = "Leading";
+        CHECKBOX_VERTICAL_ROMAN_CHARS = "Upright chars (vertical)";
+        CHECKBOX_TATE_CHU_YOKO = "Auto Tate-Chu-Yoko";
+        CHECKBOX_TSUME_CHARS = "Tsume chars";
         LABEL_TEXT_DIRECTION = "Text Direction:";
         LIST_TEXT_DIT_ITEMS = [ "Default", "Horizontal", "Vertical" ];
         CHECKBOX_NO_LAYER_GROUP = "Don't create layer group";

@@ -37,7 +37,7 @@ class LabelPlusInput extends GenericUI {
         this.saveIni = false;
         this.hasBorder = false;
         this.settingsPanel = false;
-        this.winRect = { x: 200, y: 200, w: 875, h: 590 };
+        this.winRect = { x: 200, y: 200, w: 875, h: 640 };
         this.center = true;
         this.title = I18n.APP_NAME + " " + VERSION;
         this.notesSize = 0;
@@ -714,6 +714,50 @@ class LabelPlusInput extends GenericUI {
         pnl.textLeadingTextBox.text = "120";
         xx += 55;
         pnl.add('statictext', [xx, yy, xx + 40, yy + 20], "%");
+        xx += 50;
+
+        // vertical roman alignment（與行距同一行）
+        pnl.verticalRomanCheckBox = pnl.add('checkbox', [xx, yy, xx + 130, yy + 20], I18n.CHECKBOX_VERTICAL_ROMAN_CHARS);
+        pnl.verticalRomanCheckBox.onClick = () => {
+            pnl.verticalRomanTextBox.enabled = pnl.verticalRomanCheckBox.value;
+        };
+        xx += 135;
+        pnl.verticalRomanTextBox = pnl.add('edittext', [xx, yy, xx + 80, yy + 20]);
+        pnl.verticalRomanTextBox.text = "?!";
+        pnl.verticalRomanTextBox.enabled = false;
+        xx = xOfs;
+        yy += 23;
+
+        // tate-chu-yoko / 直排內橫排：用 | 分隔要匹配的文本片段
+        pnl.tateChuYokoCheckBox = pnl.add('checkbox', [xx, yy, xx + 150, yy + 20], I18n.CHECKBOX_TATE_CHU_YOKO);
+        pnl.tateChuYokoCheckBox.onClick = () => {
+            pnl.tateChuYokoTextBox.enabled = pnl.tateChuYokoCheckBox.value;
+        };
+        xx += 155;
+        pnl.tateChuYokoTextBox = pnl.add('edittext', [xx, yy, xx + 180, yy + 20]);
+        pnl.tateChuYokoTextBox.text = "!!|!?|?!|??";
+        pnl.tateChuYokoTextBox.enabled = false;
+        xx = xOfs;
+        yy += 23;
+
+        // tsume / 比例間距：勾選框 + 字符欄 + 百分比下拉
+        pnl.tsumeCheckBox = pnl.add('checkbox', [xx, yy, xx + 130, yy + 20], I18n.CHECKBOX_TSUME_CHARS);
+        pnl.tsumeCheckBox.onClick = () => {
+            pnl.tsumeTextBox.enabled = pnl.tsumeCheckBox.value;
+            pnl.tsumePercentList.enabled = pnl.tsumeCheckBox.value;
+        };
+        xx += 135;
+        pnl.tsumeTextBox = pnl.add('edittext', [xx, yy, xx + 160, yy + 20]);
+        pnl.tsumeTextBox.text = "「」";
+        pnl.tsumeTextBox.enabled = false;
+        xx += 165;
+        pnl.tsumePercentList = pnl.add('dropdownlist', [xx, yy, xx + 70, yy + 20]);
+        // 10% ~ 90%（步進 10%）
+        for (let p = 10; p <= 90; p += 10) {
+            pnl.tsumePercentList.add('item', p + "%");
+        }
+        pnl.tsumePercentList.selection = 7; // 預設 80%
+        pnl.tsumePercentList.enabled = false;
         xx = xOfs;
         yy += 23;
 
@@ -763,6 +807,40 @@ class LabelPlusInput extends GenericUI {
             }
             Emit(pnl.setTextLeadingCheckBox.onClick);
         }
+        if (opts.verticalRomanChars !== undefined) {
+            if (opts.verticalRomanChars === "") {
+                pnl.verticalRomanCheckBox.value = false;
+            } else {
+                pnl.verticalRomanCheckBox.value = true;
+                pnl.verticalRomanTextBox.text = opts.verticalRomanChars;
+            }
+            Emit(pnl.verticalRomanCheckBox.onClick);
+        }
+        if (opts.tateChuYokoPatterns === undefined) {
+            pnl.tateChuYokoCheckBox.value = true;
+        } else if (opts.tateChuYokoPatterns === "") {
+            pnl.tateChuYokoCheckBox.value = false;
+        } else {
+            pnl.tateChuYokoCheckBox.value = true;
+            pnl.tateChuYokoTextBox.text = opts.tateChuYokoPatterns;
+        }
+        Emit(pnl.tateChuYokoCheckBox.onClick);
+        if (opts.tsumeChars !== undefined) {
+            if (opts.tsumeChars === "") {
+                pnl.tsumeCheckBox.value = false;
+            } else {
+                pnl.tsumeCheckBox.value = true;
+                pnl.tsumeTextBox.text = opts.tsumeChars;
+            }
+            Emit(pnl.tsumeCheckBox.onClick);
+        }
+        if (opts.tsumePercent !== undefined && opts.tsumePercent >= 10 && opts.tsumePercent <= 90) {
+            // 將 10/20/.../90 對應到下拉選項 index 0..8
+            let idx = Math.round((opts.tsumePercent - 10) / 10);
+            if (idx >= 0 && idx <= 8) {
+                pnl.tsumePercentList.selection = idx;
+            }
+        }
 
         let getOption = (opts: CustomOptions): CustomOptions  | null => {
             opts.docTemplate =
@@ -782,6 +860,12 @@ class LabelPlusInput extends GenericUI {
             }
             opts.textLeading = (pnl.setTextLeadingCheckBox.value) ? pnl.textLeadingTextBox.text : 0;
             opts.textDirection = <OptionTextDirection> I18n.LIST_TEXT_DIT_ITEMS.indexOf(pnl.textDirList.selection.text);
+            opts.verticalRomanChars = (pnl.verticalRomanCheckBox.value) ? pnl.verticalRomanTextBox.text : "";
+            opts.tateChuYokoPatterns = (pnl.tateChuYokoCheckBox.value) ? pnl.tateChuYokoTextBox.text : "";
+            opts.tsumeChars = (pnl.tsumeCheckBox.value) ? pnl.tsumeTextBox.text : "";
+            // 下拉文字格式 "50%"，轉成數字 50
+            let tsumeText: string = pnl.tsumePercentList.selection ? pnl.tsumePercentList.selection.text : "50%";
+            opts.tsumePercent = parseInt(tsumeText, 10) || 50;
             return opts;
         }
 
@@ -948,10 +1032,10 @@ class LabelPlusInput extends GenericUI {
         yy += 155;
 
         // style
-        this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 170]);
+        this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 220]);
         ret = this.uiStylePanel(this.stylePnl);
         this.addToPickerList(ret.getOption);
-        yy += 180;
+        yy += 230;
 
         // automation
         this.automationPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 170]);
