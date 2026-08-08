@@ -12,13 +12,9 @@ namespace I18n {
     export var PANEL_STYLE: string = "樣式";
     export var PANEL_AUTOMATION: string = "自動化";
 
-    export var PANEL_TEMPLATE_SETTING: string = "文檔模板設定";
-    export var RB_TEMPLATE_AUTO: string = "自動";
-    export var RB_TEMPLATE_NO: string = "不使用模板";
-    export var RB_TEMPLATE_CUSTOM: string = "自定義模板";
-
     export var LABEL_TEXT_FILE: string = "LabelPlus文本:";
     export var LABEL_MEO_FILE: string = "Meo格式文本:";
+    export var LABEL_BT_FILE: string = "BT格式文本:";
     export var LABEL_SOURCE: string = "圖源:";
     export var LABEL_OVERLAY_MANUAL_SOURCE: string = "涂白文件夾:";
     export var LABEL_TARGET: string = "輸出路徑:";
@@ -46,7 +42,8 @@ namespace I18n {
     export var LIST_TEXT_DIT_ITEMS: string[] = ["默認", "水平", "垂直"];
     export var CHECKBOX_NO_LAYER_GROUP: string = "不使用圖層分組";
     export var CHECKBOX_CENTER_ALIGN: string = "居中對齊";
-    export var CHECKBOX_USE_MEO_FONT_SIZE: string = "Meo 文字樣式（字體、大小、方向、顏色、描邊）";
+    export var CHECKBOX_USE_MEO_FONT_SIZE: string = "來源文字樣式（Meo/BT：字體、大小、方向、顏色、描邊）";
+    export var CHECKBOX_USE_PARAGRAPH_TEXT: string = "BT：使用段落文字（依文字框自動換行）";
 
     export var CHECKBOX_DIALOG_OVERLAY: string = "執行\"對話框涂白\"";
     export var LABEL_DIALOG_OVERLAY_GROUP: string = "指定分組(如: group1,group2)：";
@@ -64,15 +61,15 @@ namespace I18n {
     export var ERROR_NOT_FOUND_TARGET: string = "未找到輸出PSD路徑！";
     export var ERROR_NOT_FOUND_LPTEXT: string = "未找到LabelPlus文本文件";
     export var ERROR_NOT_FOUND_MEOTEXT: string = "未找到Meo格式文本文件";
-    export var ERROR_NOT_FOUND_TEMPLATE: string = "未找到Photoshop模板文件！";
+    export var ERROR_NOT_FOUND_BTTEXT: string = "未找到BT格式文本文件";
     export var ERROR_CREATE_NEW_FOLDER: string = "無法創建新資料夾";
     export var ERROR_PARSER_LPTEXT_FAIL: string = "解析LabelPlus文本失敗";
     export var ERROR_PARSER_MEOTEXT_FAIL: string = "解析Meo格式文本失敗";
+    export var ERROR_PARSER_BTTEXT_FAIL: string = "解析BT格式文本失敗";
     export var ERROR_NO_IMG_CHOOSED: string = "請選擇至少一張圖片";
     export var ERROR_NO_LABEL_GROUP_CHOOSED: string = "請選擇至少一個分組";
     export var ERROR_NO_MATCH_IMG: string = "沒有匹配的圖片文件！！！！";
     export var ERROR_HAVE_NO_MATCH_IMG: string = "有些圖片文件沒有匹配，請重新檢查."
-    export var ERROR_PRESET_TEMPLATE_NOT_FOUND: string = "無法匹配模板文件，請確認 \"ps_script_res\" 資料夾存在.";
     export var ERROR_TEXT_REPLACE_EXPRESSION: string = "文本替換表達式有誤，請重新檢查.";
     export var ERROR_OPT_FONT_NOT_FOUND: string = "找不到字體";
 
@@ -88,12 +85,9 @@ namespace I18n {
         PANEL_OUTPUT = "Output";
         PANEL_STYLE = "Style";
         PANEL_AUTOMATION = "Automation";
-        PANEL_TEMPLATE_SETTING = "Document Template Setting";
-        RB_TEMPLATE_AUTO = "Auto";
-        RB_TEMPLATE_NO = "No Template";
-        RB_TEMPLATE_CUSTOM = "Custom Template";
         LABEL_TEXT_FILE = "Text file";
         LABEL_MEO_FILE = "Meo format file";
+        LABEL_BT_FILE = "BT format file";
         LABEL_SOURCE = "Image Source:";
         LABEL_OVERLAY_MANUAL_SOURCE = "Overlay Manual Source:";
         LABEL_TARGET = "Output Folder:";
@@ -119,7 +113,8 @@ namespace I18n {
         LIST_TEXT_DIT_ITEMS = [ "Default", "Horizontal", "Vertical" ];
         CHECKBOX_NO_LAYER_GROUP = "Don't create layer group";
         CHECKBOX_CENTER_ALIGN = "Center align after action";
-        CHECKBOX_USE_MEO_FONT_SIZE = "Meo text style (font, size, orientation, color, stroke)";
+        CHECKBOX_USE_MEO_FONT_SIZE = "Source text style (Meo/BT: font, size, orientation, color, stroke)";
+        CHECKBOX_USE_PARAGRAPH_TEXT = "BT: paragraph text (auto-wrap by text box)";
         CHECKBOX_DIALOG_OVERLAY = "Execute \"Dialog Overlay\"";
         LABEL_DIALOG_OVERLAY_GROUP = "Specified Groups(like: group1,group2)：";
         LABEL_DIALOG_OVERLAY_TOLERANCE = "Tolerance:";
@@ -134,15 +129,15 @@ namespace I18n {
         ERROR_NOT_FOUND_TARGET = "Output PSD Folder Not Found!";
         ERROR_NOT_FOUND_LPTEXT = "LabelPlus Text File Not Found!";
         ERROR_NOT_FOUND_MEOTEXT = "Meo Format Text File Not Found!";
-        ERROR_NOT_FOUND_TEMPLATE = "Photoshop template file not found!";
+        ERROR_NOT_FOUND_BTTEXT = "BT Format Text File Not Found!";
         ERROR_CREATE_NEW_FOLDER = "Could not build new folder";
         ERROR_PARSER_LPTEXT_FAIL = "Fail To Load LabelPlus Text File";
         ERROR_PARSER_MEOTEXT_FAIL = "Fail To Load Meo Format Text File";
+        ERROR_PARSER_BTTEXT_FAIL = "Fail To Load BT Format Text File";
         ERROR_NO_IMG_CHOOSED = "Please select more than one image";
         ERROR_NO_LABEL_GROUP_CHOOSED = "Please select more than one group";
         ERROR_NO_MATCH_IMG = "No matched image file!!!!";
         ERROR_HAVE_NO_MATCH_IMG = "Some image files did not match, please check again."
-        ERROR_PRESET_TEMPLATE_NOT_FOUND = "Cannot match template file, please make sure \"ps_script_res\" folder exsit.";
         ERROR_TEXT_REPLACE_EXPRESSION = "Expression of text replacing is wrong, please check again.";
         ERROR_OPT_FONT_NOT_FOUND = "Cannot found the font";
     }

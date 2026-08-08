@@ -12,7 +12,6 @@ let textReplace: TextReplaceInfo = [];
 
 interface Group {
     layerSet?: LayerSet;
-    template?: ArtLayer;
 };
 type GroupDict = { [key: string]: Group };
 
@@ -30,6 +29,10 @@ interface LabelInfo {
     strokeColor?: string;
     strokeWeight?: number;
     rotation?: number;
+    boxX?: number;
+    boxY?: number;
+    boxW?: number;
+    boxH?: number;
 };
 
 interface ImageWorkspace {
@@ -101,10 +104,9 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         }
     }
 
-    // 导出文本，设置的优先级大于模板，无模板时做部分额外处理
+    // 导出文本
     let textLayer: ArtLayer;
     let o: TextInputOptions = {
-        template: img.ws.groups[label.group].template,
         font: (opts.font != "") ? opts.font : undefined,
         direction: textDir,
         lgroup: img.ws.groups[label.group].layerSet,
@@ -115,16 +117,11 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
     if (opts.useMeoFontSize && label.fontSize && label.fontSize > 0) {
         o.size = UnitValue(label.fontSize, "pt");
     } else {
-        // 否則，使用現有的邏輯
-        if (opts.docTemplate === OptionDocTemplate.No) {
-            let proper_size = UnitValue(min(img.ws.doc.height.as("pt"), img.ws.doc.height.as("pt")) / 90.0, "pt");
-            o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : proper_size;
-        } else {
-            o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : undefined;
-        }
+        let proper_size = UnitValue(min(img.ws.doc.height.as("pt"), img.ws.doc.height.as("pt")) / 90.0, "pt");
+        o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : proper_size;
     }
 
-    // 啟用 Meo 樣式時，套用標籤級的字體 / 風格 / 顏色 / 描邊（優先於模板）
+    // 啟用 Meo 樣式時，套用標籤級的字體 / 風格 / 顏色 / 描邊
     if (opts.useMeoFontSize) {
         if (label.font) {
             o.font = label.font; // 直接使用 PostScript name
@@ -162,6 +159,21 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         o.tsumePercent = opts.tsumePercent;
     }
 
+    // BT：勾選段落文字且標籤有文字框時，建立 Area Text
+    let usedParagraphBox = false;
+    if (opts.useParagraphText &&
+        typeof label.boxX === "number" && typeof label.boxY === "number" &&
+        typeof label.boxW === "number" && typeof label.boxH === "number" &&
+        label.boxW > 0 && label.boxH > 0) {
+        o.paragraphBox = {
+            x: label.boxX,
+            y: label.boxY,
+            w: label.boxW,
+            h: label.boxH
+        };
+        usedParagraphBox = true;
+    }
+
     textLayer = newTextLayer(img.ws.doc, label.contents, label.x, label.y, o);
 
     // 执行动作,名称为分组名
@@ -172,7 +184,8 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
     }
 
     // Center the layer after the action has been applied, so the bounds are correct
-    if (opts.centerAlign) {
+    // 段落文字已依文字框定位，不再做居中平移（避免框被挪走）
+    if (opts.centerAlign && !usedParagraphBox) {
         var ru = app.preferences.rulerUnits;
         app.preferences.rulerUnits = Units.PIXELS;
         try {
@@ -250,7 +263,11 @@ function importImage(img: ImageInfo): boolean
             color: l.color,
             strokeColor: l.strokeColor,
             strokeWeight: l.strokeWeight,
-            rotation: l.rotation
+            rotation: l.rotation,
+            boxX: l.boxX,
+            boxY: l.boxY,
+            boxW: l.boxW,
+            boxH: l.boxH
         };
         log("import label " + label_info.index + "...");
         importLabel(img, label_info);
@@ -325,7 +342,7 @@ function findOverlayManualFile(overlayManualSource: string, originalFilename: st
     return null; // 找不到匹配的文件
 }
 
-function openImageWorkspace(img_filename: string, template_path: string): ImageWorkspace | null
+function openImageWorkspace(img_filename: string): ImageWorkspace | null
 {
     assert(opts !== null);
 
@@ -338,17 +355,9 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
         return null; //note: do not exit if image not exist
     }
 
-    // if template is enabled, open template; or create a new file
-    let wsDoc: Document; // workspace document
-    if (opts.docTemplate == OptionDocTemplate.No) {
-        wsDoc = app.documents.add(bgDoc.width, bgDoc.height, bgDoc.resolution, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
-        wsDoc.activeLayer.name = TEMPLATE_LAYER.IMAGE;
-    } else {
-        let docFile = new File(template_path);  //note: if template must do not exist, crash
-        wsDoc = app.open(docFile);
-        wsDoc.resizeImage(undefined, undefined, bgDoc.resolution);
-        wsDoc.resizeCanvas(bgDoc.width, bgDoc.height);
-    }
+    // 不使用模板：直接新建文件
+    let wsDoc: Document = app.documents.add(bgDoc.width, bgDoc.height, bgDoc.resolution, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
+    wsDoc.activeLayer.name = TEMPLATE_LAYER.IMAGE;
 
     // wsDoc is clean, check template elements, if a element not exist
     let bgLayer: ArtLayer;
@@ -519,14 +528,6 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
             tmp.layerSet.name = name;
             tmp.layerSet.blendMode = BlendMode.NORMAL;
         }
-        // 尝试寻找分组模板，找不到则使用默认文本模板
-        if (opts.docTemplate !== OptionDocTemplate.No) {
-            let l: ArtLayer | undefined;
-            try {
-                l = wsDoc.artLayers.getByName(name);
-            } catch { };
-            tmp.template = (l !== undefined) ? l : textTemplateLayer;
-        }
         groups[name] = tmp; // add
     }
     if (opts.outputLabelIndex) {
@@ -596,50 +597,14 @@ export function importFiles(custom_opts: CustomOptions): boolean
     log(Stdlib.listProps(opts));
     log("Properties end   ------------------");
 
-    //解析文本文件（支援LabelPlus和Meo格式）
-    let lpFile: LpFile | null = null;
+    // 解析 BT 文本文件
     let filePath = opts.lpTextFilePath;
-    let fileExtension = filePath.substring(filePath.lastIndexOf("."), filePath.length).toLowerCase();
-    
-    // 根據文件名判斷是否為Meo格式
-    let isMeoFormat = false;
-    if (fileExtension === '.json') {
-        // 簡單檢查：如果是JSON文件，嘗試讀取部分內容判斷格式
-        try {
-            let f = new File(filePath);
-            if (f && f.exists) {
-                f.open("r", "TEXT", "????");
-                f.lineFeed = "unix";
-                f.encoding = 'UTF-8';
-                let content = f.read();
-                f.close();
-                
-                // 如果包含transMap和groupList，判斷為Meo格式
-                if (content.indexOf('"transMap"') !== -1 && content.indexOf('"groupList"') !== -1) {
-                    isMeoFormat = true;
-                }
-            }
-        } catch (e) {
-            log("無法預檢查文件格式，使用默認解析器");
-        }
+    let lpFile = btTextParser(filePath);
+    if (lpFile == null) {
+        log_err("error: " + I18n.ERROR_PARSER_BTTEXT_FAIL);
+        return false;
     }
-    
-    // 選擇合適的解析器
-    if (isMeoFormat) {
-        lpFile = meoTextParser(filePath);
-        if (lpFile == null) {
-            log_err("error: " + I18n.ERROR_PARSER_MEOTEXT_FAIL);
-            return false;
-        }
-        log("parse meo format text done...");
-    } else {
-        lpFile = lpTextParser(filePath);
-        if (lpFile == null) {
-            log_err("error: " + I18n.ERROR_PARSER_LPTEXT_FAIL);
-            return false;
-        }
-        log("parse labelplus text done...");
-    }
+    log("parse bt format text done...");
 
     // 替换文本解析
     if (opts.textReplace) {
@@ -652,42 +617,6 @@ export function importFiles(custom_opts: CustomOptions): boolean
     }
     log("parse textreplace done...");
 
-    // 确定doc模板文件
-    let template_path: string = "";
-    switch (opts.docTemplate) {
-    case OptionDocTemplate.Custom:
-        template_path = opts.docTemplateCustomPath;
-        if (!FileIsExists(template_path)) {
-            log_err("error: " + I18n.ERROR_NOT_FOUND_TEMPLATE + " " + template_path);
-            return false;
-        }
-        break;
-    case OptionDocTemplate.Auto:
-        let tempdir = GetScriptFolder() + dirSeparator + "ps_script_res" + dirSeparator;
-        let tempname = app.locale.split("_")[0].toLocaleLowerCase() + ".psd"; // such as "zh_CN" -> zh.psd
-
-        let try_list: string[] = [
-            tempdir + tempname,
-            tempdir + "en.psd"
-        ];
-        for (let i = 0; i < try_list.length; i++) {
-            if (FileIsExists(try_list[i])) {
-                template_path = try_list[i];
-                break;
-            }
-        }
-        if (template_path === "") {
-            log_err("error: " + I18n.ERROR_PRESET_TEMPLATE_NOT_FOUND);
-            return false;
-        }
-        log("auto match template: " + template_path);
-        break;
-    case OptionDocTemplate.No:
-    default:
-        log("template not used");
-        break;
-    }
-
     // 遍历所选图片
     for (let i = 0; i < opts.imageSelected.length; i++) {
         let orgin_name :string = opts.imageSelected[i].file; // 翻译文件中的图片文件名
@@ -699,7 +628,7 @@ export function importFiles(custom_opts: CustomOptions): boolean
             log('no label, ignored...');
             continue;
         }
-        let ws = openImageWorkspace(matched_name, template_path);
+        let ws = openImageWorkspace(matched_name);
         if (ws == null) {
             log_err(name_pair + ": " + I18n.ERROR_FILE_OPEN_FAIL);
             continue;
@@ -742,6 +671,8 @@ interface TextInputOptions {
     isVertical?: boolean;    // 文本最終方向是否為直排（用來判斷是否套用 verticalRomanChars）
     tsumeChars?: string;     // 套用「比例間距 / Tsume」的字符列表
     tsumePercent?: number;   // 比例間距百分比 10~90（對應 mojiZume 0.10~0.90）
+    // 段落文字框（相對座標 0–1：左上角 + 寬高）；有值則建立 PARAGRAPHTEXT
+    paragraphBox?: { x: number; y: number; w: number; h: number };
 };
 
 // 將任意角度正規化到 (-180, 180] 區間
@@ -1119,7 +1050,34 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
         }
     }
 
-    textItemRef.position = Array(UnitValue(doc.width.as("px") * x, "px"), UnitValue(doc.height.as("px") * y, "px"));
+    // 段落文字：依文字框建立 Area Text；否則維持點文字
+    let useParagraph = !!(topts.paragraphBox &&
+        topts.paragraphBox.w > 0 && topts.paragraphBox.h > 0);
+    if (useParagraph) {
+        let box = topts.paragraphBox!;
+        let docW = doc.width.as("px");
+        let docH = doc.height.as("px");
+        let ru = app.preferences.rulerUnits;
+        try {
+            app.preferences.rulerUnits = Units.PIXELS;
+            textItemRef.kind = TextType.PARAGRAPHTEXT;
+            // position = 文字框左上角
+            textItemRef.position = Array(
+                UnitValue(docW * box.x, "px"),
+                UnitValue(docH * box.y, "px")
+            );
+            textItemRef.width = UnitValue(docW * box.w, "px");
+            textItemRef.height = UnitValue(docH * box.h, "px");
+        } catch (e) {
+            log_err("create paragraph text failed, fallback to point text: " + e.toString());
+            useParagraph = false;
+            textItemRef.position = Array(UnitValue(doc.width.as("px") * x, "px"), UnitValue(doc.height.as("px") * y, "px"));
+        } finally {
+            app.preferences.rulerUnits = ru;
+        }
+    } else {
+        textItemRef.position = Array(UnitValue(doc.width.as("px") * x, "px"), UnitValue(doc.height.as("px") * y, "px"));
+    }
 
     if (topts.lgroup)
         artLayerRef.move(topts.lgroup, ElementPlacement.PLACEATBEGINNING);

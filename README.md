@@ -93,4 +93,4 @@ $ yarn install
 $ ./build.sh
 ```
 
-建置完成後，會在 `build/` 目錄生成 `LabelPlus_Ps_Script_ZS.jsx` 腳本文件，可直接在 Photoshop 中使用。
+建置完成後，會在 `build/` 目錄生成 `LabelPlus_Ps_Script_BT.jsx` 腳本文件，可直接在 Photoshop 中使用。

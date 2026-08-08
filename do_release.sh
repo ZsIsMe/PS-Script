@@ -67,8 +67,7 @@ cp -v CHANGELOG.md ${PACK_DIR}/
 date=$(date +%Y-%m-%d)
 sed -i "s/\[Unreleased\]/\[${version}\] - ${date}/" $PACK_DIR/CHANGELOG.md
 
-pack build/LabelPlus_Ps_Script.jsx \
-    build/ps_script_res \
+pack build/LabelPlus_Ps_Script_BT.jsx \
     LICENSE.txt \
     README.md
 

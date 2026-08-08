@@ -3,7 +3,6 @@
 namespace LabelPlus {
 
 export enum OptionTextDirection { Keep, Horizontal, Vertical };
-export enum OptionDocTemplate { Auto, No, Custom }; // auto choose preset template/no use template/custom template
 export enum OptionOutputType { PSD, TIFF, PNG, JPG, _count };
 
 export class ImageInfo {
@@ -23,15 +22,13 @@ export class CustomOptions {
     groupSelected: string[] = [];  // selected label group
 
     // ------------------------------------ saved options
-    docTemplate: OptionDocTemplate = OptionDocTemplate.Auto; // image document template option
-    docTemplateCustomPath: string = "";  // custom image document template path
-
     outputType: OptionOutputType = OptionOutputType.PSD; // output image file type
     ignoreNoLabelImg: boolean = false; // ignore images with no label
     noLayerGroup: boolean = false; // do not create group in document for text layers
     notClose: boolean = false; // do not close image document
-    centerAlign: boolean = false; // 是否居中对齐
-    useMeoFontSize: boolean = false; // 是否使用 Meo JSON 中的字體大小和方向
+    centerAlign: boolean = true; // 是否居中对齐（默認勾選）
+    useMeoFontSize: boolean = true; // 是否使用來源文字樣式（字級、方向、顏色、描邊等）；預設勾選
+    useParagraphText: boolean = true; // BT：有文字框時建立段落文字（依框自動換行）；預設勾選
     verticalRomanChars: string = "?!"; // 直排文字中要套用「標準直立」的字符列表
     tateChuYokoPatterns: string = "!!|!?|?!|??"; // 直排時自動匹配並套用「直排內橫排」的文本片段
     tsumeChars: string = "「」"; // 套用「比例間距 / Tsume」的字符列表（直排/橫排都生效）；空字串=停用

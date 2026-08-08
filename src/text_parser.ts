@@ -16,6 +16,11 @@ export interface LpLabel {
     strokeColor?: string; // 描邊顏色（HEX 字串，空字串表示不描邊）
     strokeWeight?: number; // 描邊寬度（單位：px），0 表示不描邊
     rotation?: number; // 文字旋轉角度（度，InDesign 慣例：正值=逆時針，負值=順時針），會正規化到 (-180, 180]
+    // 文字框（相對座標 0–1；BT 等有框資訊時填入；x/y 為左上角，w/h 為寬高）
+    boxX?: number;
+    boxY?: number;
+    boxW?: number;
+    boxH?: number;
 }
 
 export type LpLabelDict = {
@@ -150,6 +155,246 @@ export function meoTextParser(path: string): LpFile | null
         return result;
     } catch (e) {
         log_err("MeoTextReader: parse error - " + e.toString());
+        return null;
+    }
+}
+
+// BalloonsTranslator (BT) JSON 介面
+export interface BtImageInfo {
+    finish_code?: number;
+    width: number;
+    height: number;
+    translation_target?: string;
+}
+
+export interface BtFontFormat {
+    font_family?: string;
+    font_size?: number;
+    stroke_width?: number;
+    frgb?: number[]; // [R, G, B]
+    srgb?: number[]; // stroke [R, G, B]
+    bold?: boolean;
+    italic?: boolean;
+    vertical?: boolean;
+    alignment?: number;
+    font_weight?: number;
+    line_spacing?: number;
+    letter_spacing?: number;
+}
+
+export interface BtBalloon {
+    xyxy: number[]; // [x1, y1, x2, y2] 像素絕對座標
+    text?: string[];
+    translation?: string;
+    angle?: number;
+    src_is_vertical?: boolean;
+    label?: string | null;
+    fontformat?: BtFontFormat;
+    _detected_font_size?: number;
+}
+
+export interface BtFile {
+    directory?: string;
+    pages: { [filename: string]: BtBalloon[] };
+    current_img?: string;
+    image_info: { [filename: string]: BtImageInfo };
+}
+
+function btRgbToHex(rgb: number[]): string | undefined
+{
+    if (!rgb || rgb.length < 3) {
+        return undefined;
+    }
+    function toHex(n: number): string {
+        let v = Math.round(n);
+        if (v < 0) v = 0;
+        if (v > 255) v = 255;
+        let h = v.toString(16).toUpperCase();
+        return (h.length < 2) ? ("0" + h) : h;
+    }
+    return "#" + toHex(rgb[0]) + toHex(rgb[1]) + toHex(rgb[2]);
+}
+
+function btNormalizeFontFamily(name: string): string
+{
+    // "[toolbox]BuDing-JF" -> "BuDing-JF"
+    return name.replace(/^\[[^\]]*\]/, "");
+}
+
+function btFontStyleFromFlags(bold?: boolean, italic?: boolean): string | undefined
+{
+    if (bold && italic) return "Bold Italic";
+    if (bold) return "Bold";
+    if (italic) return "Italic";
+    return undefined;
+}
+
+// BalloonsTranslator JSON 解析函數（獨立 parser，輸出統一為 LpFile）
+export function btTextParser(path: string): LpFile | null
+{
+    var f = new File(path);
+    if (!f || !f.exists) {
+        log_err("BtTextReader: file " + path + " not exists");
+        return null;
+    }
+
+    try {
+        f.open("r", "TEXT", "????");
+        f.lineFeed = "unix";
+        f.encoding = 'UTF-8';
+        var json = f.read();
+        f.close();
+
+        var btData: BtFile = (new Function('return ' + json))();
+
+        if (!btData.pages || !btData.image_info) {
+            log_err("Invalid BT format: missing pages or image_info");
+            return null;
+        }
+
+        log("BT format detected:");
+        log("  directory: " + (btData.directory || 'none'));
+
+        // BT 無分組概念：優先用 balloon.label，否則統一歸入 default
+        let groups: string[] = [];
+        let groupSet: { [name: string]: boolean } = {};
+
+        let images: LpLabelDict = {};
+        let totalLabels = 0;
+
+        for (let filename in btData.pages) {
+            if (!btData.pages.hasOwnProperty(filename)) {
+                continue;
+            }
+            let balloons = btData.pages[filename];
+            if (!balloons || typeof balloons.length !== "number") {
+                continue;
+            }
+
+            let imgInfo = btData.image_info[filename];
+            if (!imgInfo || !imgInfo.width || !imgInfo.height) {
+                log_err("BtTextReader: missing image_info for " + filename);
+                continue;
+            }
+            let imgW = imgInfo.width;
+            let imgH = imgInfo.height;
+
+            let lpLabels: LpLabel[] = [];
+            for (let i = 0; i < balloons.length; i++) {
+                let b = balloons[i];
+                if (!b || !b.xyxy || b.xyxy.length < 4) {
+                    continue;
+                }
+
+                let rawText = "";
+                if (b.translation != null && String(b.translation) !== "") {
+                    rawText = String(b.translation);
+                } else if (b.text && b.text.length > 0) {
+                    rawText = b.text.join("\n");
+                }
+                if (rawText === "") {
+                    continue;
+                }
+                let processedText = rawText.replace(/\n/g, "\r");
+
+                let x1 = b.xyxy[0], y1 = b.xyxy[1], x2 = b.xyxy[2], y2 = b.xyxy[3];
+                // 轉成與 Meo/LabelPlus 一致的相對座標（框中心）
+                let nx = ((x1 + x2) / 2.0) / imgW;
+                let ny = ((y1 + y2) / 2.0) / imgH;
+                // 文字框：左上角 + 寬高（相對座標，供段落文字使用）
+                let boxX = x1 / imgW;
+                let boxY = y1 / imgH;
+                let boxW = (x2 - x1) / imgW;
+                let boxH = (y2 - y1) / imgH;
+
+                let groupName = "default";
+                if (b.label != null && String(b.label) !== "") {
+                    groupName = String(b.label);
+                }
+                if (!groupSet[groupName]) {
+                    groupSet[groupName] = true;
+                    groups.push(groupName);
+                }
+
+                let ff = b.fontformat;
+                let orientation: string | undefined = undefined;
+                if (ff && typeof ff.vertical === "boolean") {
+                    orientation = ff.vertical ? "vertical" : "horizontal";
+                } else if (typeof b.src_is_vertical === "boolean") {
+                    orientation = b.src_is_vertical ? "vertical" : "horizontal";
+                }
+
+                let fontSize: number | undefined = undefined;
+                if (ff && ff.font_size && ff.font_size > 0) {
+                    fontSize = ff.font_size;
+                } else if (b._detected_font_size && b._detected_font_size > 0) {
+                    fontSize = b._detected_font_size;
+                }
+
+                let font: string | undefined = undefined;
+                if (ff && ff.font_family) {
+                    font = btNormalizeFontFamily(ff.font_family);
+                }
+
+                let fontStyle: string | undefined = undefined;
+                let color: string | undefined = undefined;
+                let strokeColor: string | undefined = undefined;
+                let strokeWeight: number | undefined = undefined;
+                if (ff) {
+                    fontStyle = btFontStyleFromFlags(ff.bold, ff.italic);
+                    color = btRgbToHex(ff.frgb || []);
+                    if (ff.stroke_width && ff.stroke_width > 0) {
+                        strokeWeight = ff.stroke_width;
+                        strokeColor = btRgbToHex(ff.srgb || []);
+                    }
+                }
+
+                let rotation: number | undefined = undefined;
+                if (typeof b.angle === "number" && !isNaN(b.angle)) {
+                    rotation = b.angle;
+                }
+
+                let lpLabel: LpLabel = {
+                    x: nx,
+                    y: ny,
+                    contents: processedText,
+                    group: groupName,
+                    fontSize: fontSize,
+                    orientation: orientation,
+                    font: font,
+                    fontStyle: fontStyle,
+                    color: color,
+                    strokeColor: strokeColor,
+                    strokeWeight: strokeWeight,
+                    rotation: rotation,
+                    boxX: boxX,
+                    boxY: boxY,
+                    boxW: boxW,
+                    boxH: boxH
+                };
+                lpLabels.push(lpLabel);
+                totalLabels++;
+
+                log("  label[" + filename + "#" + (i + 1) + "]: '" + processedText + "' @(" + nx + "," + ny + ") group:" + groupName);
+            }
+            images[filename] = lpLabels;
+        }
+
+        if (groups.length === 0) {
+            groups.push("default");
+        }
+
+        log("  pages: " + (function () { let n = 0; for (let k in images) { if (images.hasOwnProperty(k)) n++; } return n; })());
+        log("  labels: " + totalLabels);
+        log("  groups: " + groups.join(", "));
+
+        return {
+            path: path,
+            groups: groups,
+            images: images
+        };
+    } catch (e) {
+        log_err("BtTextReader: parse error - " + e.toString());
         return null;
     }
 }

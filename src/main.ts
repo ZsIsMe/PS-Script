@@ -37,9 +37,9 @@ class LabelPlusInput extends GenericUI {
         this.saveIni = false;
         this.hasBorder = false;
         this.settingsPanel = false;
-        this.winRect = { x: 200, y: 200, w: 875, h: 720 };
+        this.winRect = { x: 200, y: 200, w: 875, h: 770 };
         this.center = true;
-        this.title = I18n.APP_NAME + " " + VERSION;
+        this.title = I18n.APP_NAME + " For BallonsTranslator " + VERSION;
         this.notesSize = 0;
         this.processTxt = I18n.BUTTON_RUN;
         this.cancelTxt = I18n.BUTTON_CANCEL;
@@ -96,94 +96,48 @@ class LabelPlusInput extends GenericUI {
 
     private uiLpTextSelect = (pnl: any): PanelDesc => {
         let xx: number = 10, yy: number = 10;
-        pnl.lpTextFileLabel = pnl.add('statictext', [xx, yy, xx + 120, yy + 20], I18n.LABEL_TEXT_FILE);
+
+        // 僅保留 BallonsTranslator (BT) 格式
+        pnl.btTextFileLabel = pnl.add('statictext', [xx, yy, xx + 120, yy + 20], I18n.LABEL_BT_FILE);
         xx += 120;
-        pnl.lpTextFileTextBox = pnl.add('edittext', [xx, yy, xx + 300, yy + 20], '');
-        pnl.lpTextFileTextBox.enabled = false;
+        pnl.btTextFileTextBox = pnl.add('edittext', [xx, yy, xx + 300, yy + 20], '');
+        pnl.btTextFileTextBox.enabled = false;
         xx += 305;
-        pnl.lpTextFileBrowseButton = pnl.add('button', [xx, yy - 2, xx + 30, yy + 20], '...');
-        xx += 30;
-        yy += 25;
-        
-        // Meo格式文本選擇
-        xx = 10;
-        pnl.meoTextFileLabel = pnl.add('statictext', [xx, yy, xx + 120, yy + 20], I18n.LABEL_MEO_FILE);
-        xx += 120;
-        pnl.meoTextFileTextBox = pnl.add('edittext', [xx, yy, xx + 300, yy + 20], '');
-        pnl.meoTextFileTextBox.enabled = false;
-        xx += 305;
-        pnl.meoTextFileBrowseButton = pnl.add('button', [xx, yy - 2, xx + 30, yy + 20], '...');
+        pnl.btTextFileBrowseButton = pnl.add('button', [xx, yy - 2, xx + 30, yy + 20], '...');
         xx += 30;
         yy += 20;
-        
-        pnl.lpTextFileBrowseButton.onClick = () => {
-            let inputPnl = this.inputPnl;
-            let outputPnl = this.outputPnl;
-            let automationPnl = this.automationPnl;
 
-            let fmask = "*.txt;*.json";
-            let f = File.openDialog(I18n.LABEL_TEXT_FILE, fmask);
-            if (f && f.exists) {
-                pnl.lpTextFileTextBox.text = f.fsName;
-                pnl.meoTextFileTextBox.text = ""; // 清空Meo文本框
-                this.loadTextFile(f, inputPnl, outputPnl, automationPnl, 'labelplus');
-            }
-        };
-
-        pnl.meoTextFileBrowseButton.onClick = () => {
+        pnl.btTextFileBrowseButton.onClick = () => {
             let inputPnl = this.inputPnl;
             let outputPnl = this.outputPnl;
             let automationPnl = this.automationPnl;
 
             let fmask = "*.json";
-            let f = File.openDialog(I18n.LABEL_MEO_FILE, fmask);
+            let f = File.openDialog(I18n.LABEL_BT_FILE, fmask);
             if (f && f.exists) {
-                pnl.meoTextFileTextBox.text = f.fsName;
-                pnl.lpTextFileTextBox.text = ""; // 清空LabelPlus文本框
-                this.loadTextFile(f, inputPnl, outputPnl, automationPnl, 'meo');
+                pnl.btTextFileTextBox.text = f.fsName;
+                this.loadTextFile(f, inputPnl, outputPnl, automationPnl);
             }
         };
 
         let getOption = (opts: CustomOptions, toFile: boolean): CustomOptions | null => {
             if (!toFile) {
-                // 檢查是否選擇了文本文件
-                if (pnl.lpTextFileTextBox.text !== "" && pnl.meoTextFileTextBox.text !== "") {
-                    alert("請只選擇一種文本格式！");
+                let btPath = pnl.btTextFileTextBox.text;
+                if (btPath === "") {
+                    alert(I18n.ERROR_NOT_FOUND_BTTEXT);
                     return null;
                 }
-                
-                if (pnl.lpTextFileTextBox.text === "" && pnl.meoTextFileTextBox.text === "") {
-                    alert("請選擇一個文本文件！");
+                let f = new File(btPath);
+                if (!f || !f.exists) {
+                    alert(I18n.ERROR_NOT_FOUND_BTTEXT);
                     return null;
                 }
-
-                if (pnl.lpTextFileTextBox.text !== "") {
-                    // LabelPlus文本文件
-                    let f = new File(pnl.lpTextFileTextBox.text);
-                    if (!f || !f.exists) {
-                        alert(I18n.ERROR_NOT_FOUND_LPTEXT);
-                        return null;
-                    }
-                    let lpFile = lpTextParser(pnl.lpTextFileTextBox.text);
-                    if (lpFile == null) {
-                        alert(I18n.ERROR_PARSER_LPTEXT_FAIL);
-                        return null;
-                    }
-                    opts.lpTextFilePath = pnl.lpTextFileTextBox.text;
-                } else {
-                    // Meo格式文本文件
-                    let f = new File(pnl.meoTextFileTextBox.text);
-                    if (!f || !f.exists) {
-                        alert(I18n.ERROR_NOT_FOUND_MEOTEXT);
-                        return null;
-                    }
-                    let lpFile = meoTextParser(pnl.meoTextFileTextBox.text);
-                    if (lpFile == null) {
-                        alert(I18n.ERROR_PARSER_MEOTEXT_FAIL);
-                        return null;
-                    }
-                    opts.lpTextFilePath = pnl.meoTextFileTextBox.text;
+                let lpFile = btTextParser(btPath);
+                if (lpFile == null) {
+                    alert(I18n.ERROR_PARSER_BTTEXT_FAIL);
+                    return null;
                 }
+                opts.lpTextFilePath = btPath;
             }
 
             return opts;
@@ -192,8 +146,8 @@ class LabelPlusInput extends GenericUI {
         return {x: xx, y:yy, getOption: getOption};
     }
 
-    // 提取文本文件加載的通用邏輯
-    private loadTextFile = (f: File, inputPnl: any, outputPnl: any, automationPnl: any, format: string) => {
+    // 提取文本文件加載的通用邏輯（僅 BT）
+    private loadTextFile = (f: File, inputPnl: any, outputPnl: any, automationPnl: any) => {
         let fl = new Folder(f.path);
         inputPnl.sourceTextBox.text = fl.fsName;
         outputPnl.targetTextBox.text = fl.fsName + dirSeparator + 'output';
@@ -215,46 +169,34 @@ class LabelPlusInput extends GenericUI {
             }
         }
 
-        // 根據格式加載文本文件
-        let lpFile: LpFile | null = null;
-        if (format === 'labelplus') {
-            lpFile = lpTextParser(f.fsName);
-            if (lpFile === null) {
-                alert(I18n.ERROR_PARSER_LPTEXT_FAIL);
-                return;
-            }
-        } else if (format === 'meo') {
-            lpFile = meoTextParser(f.fsName);
-            if (lpFile === null) {
-                alert(I18n.ERROR_PARSER_MEOTEXT_FAIL);
-                return;
-            }
+        let lpFile = btTextParser(f.fsName);
+        if (lpFile === null) {
+            alert(I18n.ERROR_PARSER_BTTEXT_FAIL);
+            return;
         }
 
-        if (lpFile) {
-            this.lpFile = lpFile;
-            this.allPanelEnable(true);
+        this.lpFile = lpFile;
+        this.allPanelEnable(true);
 
-            // fill ui elements
-            inputPnl.chooseImageListBox.removeAll();
-            inputPnl.chooseGroupListBox.removeAll();
-            for (let key in lpFile.images) {
-                let item = inputPnl.chooseImageListBox.add('item', key);
-                item.selected = true;
-            }
-            for (let i = 0; i < lpFile.groups.length; i++) {
-                let g = lpFile.groups[i];
-                inputPnl.chooseGroupListBox[i] = inputPnl.chooseGroupListBox.add('item', g, i);
-                inputPnl.chooseGroupListBox[i].selected = true;
+        // fill ui elements
+        inputPnl.chooseImageListBox.removeAll();
+        inputPnl.chooseGroupListBox.removeAll();
+        for (let key in lpFile.images) {
+            let item = inputPnl.chooseImageListBox.add('item', key);
+            item.selected = true;
+        }
+        for (let i = 0; i < lpFile.groups.length; i++) {
+            let g = lpFile.groups[i];
+            inputPnl.chooseGroupListBox[i] = inputPnl.chooseGroupListBox.add('item', g, i);
+            inputPnl.chooseGroupListBox[i].selected = true;
 
-                // dialog overlay
-                {
-                    let doPnl = automationPnl.overlayPnl;
-                    if (doPnl.groupTextBox.text == "") { // first group
-                        doPnl.groupTextBox.text = g;
-                    }
-                    doPnl.addGroupList[i] = doPnl.addGroupList.add('item', g, i);
+            // dialog overlay
+            {
+                let doPnl = automationPnl.overlayPnl;
+                if (doPnl.groupTextBox.text == "") { // first group
+                    doPnl.groupTextBox.text = g;
                 }
+                doPnl.addGroupList[i] = doPnl.addGroupList.add('item', g, i);
             }
         }
     }
@@ -567,6 +509,18 @@ class LabelPlusInput extends GenericUI {
 
         // use meo font size（長標籤單獨一行，避免與「居中對齊」並排被截斷）
         pnl.useMeoFontSizeCheckBox = pnl.add('checkbox', [xx, yy, xx + 460, yy + 20], I18n.CHECKBOX_USE_MEO_FONT_SIZE);
+        pnl.useMeoFontSizeCheckBox.value = true;
+        xx = xOfs;
+        yy += 23;
+
+        // BT：使用段落文字（有文字框時依框自動換行）
+        pnl.useParagraphTextCheckBox = pnl.add('checkbox', [xx, yy, xx + 460, yy + 20], I18n.CHECKBOX_USE_PARAGRAPH_TEXT);
+        pnl.useParagraphTextCheckBox.value = true;
+        pnl.useParagraphTextCheckBox.onClick = () => {
+            // 段落文字已依文字框定位，禁止「居中對齊」（變灰停用）
+            let paragraphOn = pnl.useParagraphTextCheckBox.value;
+            pnl.centerAlignCheckBox.enabled = !paragraphOn;
+        };
         xx = xOfs;
         yy += 23;
 
@@ -599,6 +553,10 @@ class LabelPlusInput extends GenericUI {
             pnl.useMeoFontSizeCheckBox.value = opts.useMeoFontSize;
             Emit(pnl.useMeoFontSizeCheckBox.onClick);
         }
+        if (opts.useParagraphText !== undefined) {
+            pnl.useParagraphTextCheckBox.value = opts.useParagraphText;
+        }
+        Emit(pnl.useParagraphTextCheckBox.onClick);
 
         let getOption = (opts: CustomOptions, toFile: boolean): CustomOptions | null => {
             if (!toFile) {
@@ -617,7 +575,9 @@ class LabelPlusInput extends GenericUI {
             opts.ignoreNoLabelImg = pnl.ignoreNoLabelImgCheckBox.value;
             opts.notClose = pnl.notCloseCheckBox.value;
             opts.noLayerGroup = pnl.noLayerGroupCheckBox.value;
-            opts.centerAlign = pnl.centerAlignCheckBox.value;
+            opts.useParagraphText = pnl.useParagraphTextCheckBox.value;
+            // 段落文字啟用時強制不套用居中對齊
+            opts.centerAlign = opts.useParagraphText ? false : pnl.centerAlignCheckBox.value;
             opts.useMeoFontSize = pnl.useMeoFontSizeCheckBox.value;
             return opts;
         }
@@ -630,51 +590,6 @@ class LabelPlusInput extends GenericUI {
         let xx = xOfs,  yy = yOfs;
 
         pnl.text = I18n.PANEL_STYLE;
-
-        // template settings
-        pnl.docTemplatePnl = pnl.add('panel', [xx, yy, xx + 460, yy + 65], I18n.PANEL_TEMPLATE_SETTING);
-
-        let pnll: any = pnl.docTemplatePnl;
-        let xxxOfs: number = 5;
-        let xxx: number = xxxOfs;
-        let yyy: number = 5;
-        pnll.autoTemplateRb = pnll.add('radiobutton',  [xxx, yyy, xxx + 200, yyy + 20], I18n.RB_TEMPLATE_AUTO); xxx += 200;
-        pnll.autoTemplateRb.value = true;
-        pnll.noTemplateRb = pnll.add('radiobutton',  [xxx, yyy, xxx + 200, yyy + 20], I18n.RB_TEMPLATE_NO); xxx += 200;
-        xxx = xxxOfs;
-        yyy += 23;
-        pnll.customTemplateRb = pnll.add('radiobutton', [xxx, yyy, xxx + 130, yyy + 20], I18n.RB_TEMPLATE_CUSTOM); xxx += 135;
-        pnll.customTemplateTextbox = pnll.add('edittext', [xxx, yyy, xxx + 180, yyy + 20]); xxx += 185;
-        pnll.customTemplateTextButton = pnll.add('button', [xxx, yyy - 2, xxx + 30, yyy + 20], '...'); xxx += 30;
-        let rbclick = () => {
-            let custom_enable: boolean = pnll.customTemplateRb.value;
-            pnll.customTemplateTextbox.enabled = custom_enable;
-            pnll.customTemplateTextButton.enabled = custom_enable;
-        };
-        pnll.autoTemplateRb.onClick = rbclick;
-        pnll.noTemplateRb.onClick = rbclick;
-        pnll.customTemplateRb.onClick = rbclick;
-        rbclick();
-
-        pnll.customTemplateTextButton.onClick = () => {
-            try {
-                let def: string;
-                if (pnll.customTemplateTextbox.text !== "") {
-                    def = pnll.customTemplateTextbox.text;
-                } else if (this.inputPnl.sourceTextBox.text !== "") {
-                    def = this.inputPnl.sourceTextBox.text;
-                } else {
-                    def = Folder.desktop.path;
-                }
-                let f = Stdlib.selectFileOpen(I18n.RB_TEMPLATE_CUSTOM, "*.psd;*.tif;*.tiff", def);
-                if (f)
-                    pnll.customTemplateTextbox.text = f.fsName;
-            } catch (e) {
-                alert(Stdlib.exceptionMessage(e));
-            }
-        };
-        xx = xOfs;
-        yy += 70;
 
         // text direction
         pnl.textDirLabel = pnl.add('statictext', [xx, yy, xx + 100, yy + 20], I18n.LABEL_TEXT_DIRECTION);
@@ -764,25 +679,6 @@ class LabelPlusInput extends GenericUI {
         yy += 23;
 
         let opts = this.opts;
-        if (opts.docTemplate !== undefined) {
-            pnl.docTemplatePnl.autoTemplateRb.value = false;
-            pnl.docTemplatePnl.noTemplateRb.value = false;
-            pnl.docTemplatePnl.customTemplateRb.value = false;
-            switch (opts.docTemplate) {
-            case OptionDocTemplate.No:
-                pnl.docTemplatePnl.noTemplateRb.value = true;
-                break;
-            case OptionDocTemplate.Custom:
-                pnl.docTemplatePnl.customTemplateRb.value = true;
-                pnl.docTemplatePnl.customTemplateTextbox.text = opts.docTemplateCustomPath;
-                break;
-            case OptionDocTemplate.Auto:
-            default:
-                pnl.docTemplatePnl.autoTemplateRb.value = true;
-                break;
-            }
-            Emit(pnl.docTemplatePnl.autoTemplateRb.onClick);
-        }
         if (opts.textDirection !== undefined) {
             pnl.textDirList.selection = pnl.textDirList.find(I18n.LIST_TEXT_DIT_ITEMS[opts.textDirection]);
         }
@@ -845,13 +741,6 @@ class LabelPlusInput extends GenericUI {
         }
 
         let getOption = (opts: CustomOptions): CustomOptions  | null => {
-            opts.docTemplate =
-                pnl.docTemplatePnl.autoTemplateRb.value ? OptionDocTemplate.Auto : (
-                    pnl.docTemplatePnl.noTemplateRb.value ? OptionDocTemplate.No : (
-                        pnl.docTemplatePnl.customTemplateRb.value ? OptionDocTemplate.Custom : OptionDocTemplate.Auto
-                    )
-                );
-            opts.docTemplateCustomPath = pnl.docTemplatePnl.customTemplateTextbox.text;
             if (pnl.setFontCheckBox.value) {
                 let font = pnl.font.getFont()
                 opts.font = font.font;
@@ -1005,10 +894,10 @@ class LabelPlusInput extends GenericUI {
 
         this.optPickers = [];
 
-        // lp text select (增加高度以容納兩個輸入框)
+        // BT 文本選擇（僅一行）
         ret = this.uiLpTextSelect(pnl);
         this.addToPickerList(ret.getOption);
-        yy += 65; // 原本是40，現在增加到65
+        yy += 40;
         yOfs = yy;
 
         // setting save/load
@@ -1027,17 +916,17 @@ class LabelPlusInput extends GenericUI {
         xx = xOfs;
         yy = yOfs;
 
-        // output options（多一列 Meo 樣式勾選，需加高）
-        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 168]);
+        // output options（Meo/BT 樣式 + 段落文字勾選，需加高）
+        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 191]);
         ret = this.uiOutputPanel(this.outputPnl);
         this.addToPickerList(ret.getOption);
-        yy += 178;
+        yy += 201;
 
         // style
-        this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 220]);
+        this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 150]);
         ret = this.uiStylePanel(this.stylePnl);
         this.addToPickerList(ret.getOption);
-        yy += 230;
+        yy += 160;
 
         // automation
         this.automationPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 170]);
