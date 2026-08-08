@@ -37,7 +37,7 @@ class LabelPlusInput extends GenericUI {
         this.saveIni = false;
         this.hasBorder = false;
         this.settingsPanel = false;
-        this.winRect = { x: 200, y: 200, w: 875, h: 640 };
+        this.winRect = { x: 200, y: 200, w: 875, h: 720 };
         this.center = true;
         this.title = I18n.APP_NAME + " " + VERSION;
         this.notesSize = 0;
@@ -350,10 +350,10 @@ class LabelPlusInput extends GenericUI {
         yy += 25;
 
         // overlay manual image source folder select
-        pnl.overlayManualSourceLabel = pnl.add('statictext', [xx, yy, xx + 80, yy + 20], I18n.LABEL_OVERLAY_MANUAL_SOURCE);
-        xx += 90;
-        pnl.overlayManualSourceTextBox = pnl.add('edittext', [xx, yy, xx + 205, yy + 20], '');
-        xx += 210;
+        pnl.overlayManualSourceLabel = pnl.add('statictext', [xx, yy, xx + 90, yy + 20], I18n.LABEL_OVERLAY_MANUAL_SOURCE);
+        xx += 95;
+        pnl.overlayManualSourceTextBox = pnl.add('edittext', [xx, yy, xx + 200, yy + 20], '');
+        xx += 205;
         pnl.overlayManualSourceBrowse = pnl.add('button', [xx, yy - 2, xx + 30, yy + 20], '...');
         pnl.overlayManualSourceBrowse.onClick = () => {
             try {
@@ -425,23 +425,24 @@ class LabelPlusInput extends GenericUI {
         xx = xOfs;
         yy += 23;
 
-        // selct img
+        // selct img（listbox 高度需為「塗白文件夾」等多出的列預留空間，避免底部提示被擠壓）
+        let listBoxH = 225;
         yOfs = yy;
         pnl.chooseImageLabel = pnl.add('statictext', [xx, yy, xx + 150, yy + 20], I18n.LABEL_SELECT_IMG);
         yy += 23;
-        pnl.chooseImageListBox = pnl.add('listbox', [xx, yy, xx + 150, yy + 265], [], { multiselect: true });
+        pnl.chooseImageListBox = pnl.add('listbox', [xx, yy, xx + 150, yy + listBoxH], [], { multiselect: true });
 
         // select label group
         yy = yOfs;
         xx = xOfs + 175;
         pnl.chooseGroupLabel = pnl.add('statictext', [xx, yy, xx + 150, yy + 20], I18n.LABEL_SELECT_GROUP);
         yy += 23;
-        pnl.chooseGroupListBox = pnl.add('listbox', [xx, yy, xx + 150, yy + 265], [], { multiselect: true });
+        pnl.chooseGroupListBox = pnl.add('listbox', [xx, yy, xx + 150, yy + listBoxH], [], { multiselect: true });
         xx = xOfs;
-        yy += 270;
+        yy += listBoxH + 5;
 
         // tip for multiple selection
-        pnl.add('statictext', [xx, yy, xx + 330, yy + 44], I18n.LABEL_SELECT_TIP, { multiline: true });
+        pnl.add('statictext', [xx, yy, xx + 330, yy + 40], I18n.LABEL_SELECT_TIP, { multiline: true });
 
         // 初始化涂白文件夾路徑
         let opts = this.opts;
@@ -561,10 +562,11 @@ class LabelPlusInput extends GenericUI {
 
         // center align
         pnl.centerAlignCheckBox = pnl.add('checkbox', [xx, yy, xx + 250, yy + 20], I18n.CHECKBOX_CENTER_ALIGN);
-        xx += 250;
+        xx = xOfs;
+        yy += 23;
 
-        // use meo font size
-        pnl.useMeoFontSizeCheckBox = pnl.add('checkbox', [xx, yy, xx + 250, yy + 20], I18n.CHECKBOX_USE_MEO_FONT_SIZE);
+        // use meo font size（長標籤單獨一行，避免與「居中對齊」並排被截斷）
+        pnl.useMeoFontSizeCheckBox = pnl.add('checkbox', [xx, yy, xx + 460, yy + 20], I18n.CHECKBOX_USE_MEO_FONT_SIZE);
         xx = xOfs;
         yy += 23;
 
@@ -1025,11 +1027,11 @@ class LabelPlusInput extends GenericUI {
         xx = xOfs;
         yy = yOfs;
 
-        // output options
-        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 145]);
+        // output options（多一列 Meo 樣式勾選，需加高）
+        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 168]);
         ret = this.uiOutputPanel(this.outputPnl);
         this.addToPickerList(ret.getOption);
-        yy += 155;
+        yy += 178;
 
         // style
         this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 220]);
