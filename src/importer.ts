@@ -121,10 +121,15 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         o.size = (opts.fontSize !== 0) ? UnitValue(opts.fontSize, "pt") : proper_size;
     }
 
-    // 啟用 Meo 樣式時，套用標籤級的字體 / 風格 / 顏色 / 描邊
+    // 啟用來源文字樣式時，套用標籤級的字體 / 風格 / 顏色 / 描邊
     if (opts.useMeoFontSize) {
         if (label.font) {
-            o.font = label.font; // 直接使用 PostScript name
+            // BT 可能是 Qt family；Meo 可能已是 PostScript —— 統一解析
+            let resolved = resolveToPostScriptFont(label.font, label.fontStyle);
+            if (resolved) {
+                o.font = resolved;
+            }
+            // 解析失敗時保留全域 opts.font（若有），不硬塞無效 family
         }
         if (label.fontStyle) {
             o.fontStyle = label.fontStyle;
@@ -688,6 +693,165 @@ interface TextInputOptions {
     paragraphBox?: { x: number; y: number; w: number; h: number };
 };
 
+// -------------------- 字體：Qt/BT family → Photoshop PostScript --------------------
+// BT 存的是 QFont.family()（如 "[toolbox]BuDing-JF"）；
+// PS textItem.font 需要 postScriptName（如 "toolboxBuDingJF-W7"）。
+// Mac / Windows 皆透過 app.fonts 查詢，行為一致。
+
+let _psFontResolveCache: { [key: string]: string } = {};
+
+function normalizeFontKey(s: string): string
+{
+    // 去掉 [xxx] 前綴、空白與常見分隔符，便於模糊比對
+    return String(s || "")
+        .replace(/^\[[^\]]*\]/, "")
+        .replace(/[\s\-_.]+/g, "")
+        .toLowerCase();
+}
+
+function stylePreferenceScore(style: string, wantStyle?: string): number
+{
+    let st = (style || "").toLowerCase();
+    let want = (wantStyle || "").toLowerCase();
+    let score = 0;
+
+    if (want) {
+        let wantBold = want.indexOf("bold") !== -1;
+        let wantItalic = want.indexOf("italic") !== -1;
+        let isBold = st.indexOf("bold") !== -1 || st.indexOf("heavy") !== -1 || st.indexOf("black") !== -1;
+        let isItalic = st.indexOf("italic") !== -1 || st.indexOf("oblique") !== -1;
+        if (wantBold === isBold) score += 20;
+        if (wantItalic === isItalic) score += 10;
+        if (st === want) score += 30;
+    } else {
+        // 未指定風格：偏好 Regular / Medium / 空
+        if (st === "regular" || st === "normal" || st === "book" || st === "") score += 25;
+        else if (st.indexOf("medium") !== -1) score += 15;
+        else if (st.indexOf("bold") !== -1 || st.indexOf("italic") !== -1) score -= 5;
+    }
+    return score;
+}
+
+/** family 名裡的字重提示（toolbox 字體常見：style=Regular，字重在 family） */
+function familyWeightHintScore(family: string, wantStyle?: string): number
+{
+    let fam = (family || "").toLowerCase();
+    let want = (wantStyle || "").toLowerCase();
+    let wantBold = want.indexOf("bold") !== -1;
+    let hasBold = fam.indexOf("bold") !== -1 || fam.indexOf("heavy") !== -1 ||
+        fam.indexOf("black") !== -1 || fam.indexOf("ultra") !== -1 || /[-_]w[789]\b/.test(fam);
+    let hasMedium = fam.indexOf("medium") !== -1 || fam.indexOf("regular") !== -1 || /[-_]w[45]\b/.test(fam);
+    let hasLight = fam.indexOf("light") !== -1 || fam.indexOf("thin") !== -1 || /[-_]w[123]\b/.test(fam);
+
+    if (wantBold) {
+        return hasBold ? 15 : (hasMedium ? 0 : -10);
+    }
+    if (!want) {
+        if (hasMedium) return 12;
+        if (hasBold || hasLight) return -8;
+        return 0;
+    }
+    return 0;
+}
+
+/**
+ * 將 BT family / Meo PostScript / 任意字體字串解析為 Photoshop postScriptName。
+ * 找不到時回傳 null（呼叫端可回退原字串）。
+ */
+function resolveToPostScriptFont(fontStr: string, wantStyle?: string): string | null
+{
+    if (!fontStr) return null;
+
+    let cacheKey = fontStr + "\0" + (wantStyle || "");
+    if (_psFontResolveCache.hasOwnProperty(cacheKey)) {
+        return _psFontResolveCache[cacheKey] || null;
+    }
+
+    let resolved: string | null = null;
+    try {
+        let fonts: any = app.fonts;
+        let n: number = fonts.length;
+        let queryKey = normalizeFontKey(fontStr);
+
+        // 1) 精確：postScriptName / name / family
+        let exactMatches: any[] = [];
+        for (let i = 0; i < n; i++) {
+            let f = fonts[i];
+            if (f.postScriptName === fontStr || f.name === fontStr || f.family === fontStr) {
+                exactMatches.push(f);
+            }
+        }
+        if (exactMatches.length === 1) {
+            resolved = exactMatches[0].postScriptName;
+        } else if (exactMatches.length > 1) {
+            let best = exactMatches[0];
+            let bestScore = -9999;
+            for (let i = 0; i < exactMatches.length; i++) {
+                let f = exactMatches[i];
+                let sc = stylePreferenceScore(f.style, wantStyle);
+                if (f.postScriptName === fontStr || f.name === fontStr) sc += 100;
+                if (sc > bestScore) {
+                    bestScore = sc;
+                    best = f;
+                }
+            }
+            resolved = best.postScriptName;
+        }
+
+        // 2) 模糊：normalize 後相等，或 PS family 以 query 為前綴（BuDing-JF → BuDing-JF-W7）
+        if (!resolved && queryKey) {
+            let best: any = null;
+            let bestScore = -9999;
+            for (let i = 0; i < n; i++) {
+                let f = fonts[i];
+                let famKey = normalizeFontKey(f.family);
+                let nameKey = normalizeFontKey(f.name);
+                let psKey = normalizeFontKey(f.postScriptName);
+
+                let matched = false;
+                let sc = stylePreferenceScore(f.style, wantStyle);
+                // toolbox 等字體常把字重寫在 family 名裡、style 仍是 Regular
+                sc += familyWeightHintScore(f.family, wantStyle);
+
+                if (famKey === queryKey || nameKey === queryKey || psKey === queryKey) {
+                    matched = true;
+                    sc += 80;
+                } else if (famKey.indexOf(queryKey) === 0) {
+                    matched = true;
+                    sc += 60;
+                    sc -= Math.min(20, famKey.length - queryKey.length);
+                } else if (queryKey.indexOf(famKey) === 0 && famKey.length >= 4) {
+                    matched = true;
+                    sc += 40;
+                } else if (psKey.indexOf(queryKey) === 0) {
+                    matched = true;
+                    sc += 50;
+                }
+
+                if (matched && sc > bestScore) {
+                    bestScore = sc;
+                    best = f;
+                }
+            }
+            if (best) {
+                resolved = best.postScriptName;
+            }
+        }
+
+        if (resolved) {
+            log("font resolve: \"" + fontStr + "\" -> \"" + resolved + "\"");
+        } else {
+            log_err("font resolve failed: \"" + fontStr + "\" (not found in app.fonts)");
+        }
+    } catch (e) {
+        log_err("font resolve error: " + e.toString());
+        resolved = null;
+    }
+
+    _psFontResolveCache[cacheKey] = resolved ? resolved : "";
+    return resolved;
+}
+
 // 將任意角度正規化到 (-180, 180] 區間
 function normalizeRotation(deg: number): number
 {
@@ -1035,8 +1199,13 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
     if (topts.size)
         textItemRef.size = topts.size;
 
-    if (topts.font)
-        textItemRef.font = topts.font;
+    if (topts.font) {
+        try {
+            textItemRef.font = topts.font;
+        } catch (e) {
+            log_err("set font failed: \"" + topts.font + "\" - " + e.toString());
+        }
+    }
 
     if (topts.direction)
         textItemRef.direction = topts.direction;

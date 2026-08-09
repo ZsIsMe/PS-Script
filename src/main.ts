@@ -797,17 +797,18 @@ class LabelPlusInput extends GenericUI {
         xx = xOfs;
         yy += 23;
 
-        // dialog overlay
+        // dialog overlay（UI 已隱藏，邏輯與選項結構保留）
         pnl.dialogOverlayCheckBox = pnl.add('checkbox', [xx, yy, xx + 300, yy + 20], I18n.CHECKBOX_DIALOG_OVERLAY);
         pnl.dialogOverlayCheckBox.onClick = () => {
             let enable = pnl.dialogOverlayCheckBox.value;
             pnl.overlayPnl.enabled = enable;
         }
+        pnl.dialogOverlayCheckBox.visible = false;
 
         // pnl
         xx =+ 10;
-        yy += 23;
         pnl.overlayPnl = pnl.add('panel', [xx, yy, xx + 460, yy + 75]);
+        pnl.overlayPnl.visible = false;
 
         {
             let xx = xOfs;
@@ -852,11 +853,12 @@ class LabelPlusInput extends GenericUI {
                 pnl.runActionGroupList.selection = item;
             Emit(pnl.runActionGroupCheckBox.onClick);
         }
+        // UI 已隱藏：不從 ini 恢復對話框涂白
+        pnl.dialogOverlayCheckBox.value = false;
         if (opts.dialogOverlayLabelGroups !== undefined) {
-            pnl.dialogOverlayCheckBox.value = (opts.dialogOverlayLabelGroups !== "");
             pnl.overlayPnl.groupTextBox.text = opts.dialogOverlayLabelGroups;
-            Emit(pnl.dialogOverlayCheckBox.onClick);
         }
+        Emit(pnl.dialogOverlayCheckBox.onClick);
         if (opts.dialogOverlayTolerance !== undefined) {
             pnl.overlayPnl.toleranceTextBox.text = opts.dialogOverlayTolerance.toString();
         }
@@ -866,7 +868,8 @@ class LabelPlusInput extends GenericUI {
             if (pnl.runActionGroupCheckBox.value && pnl.runActionGroupList.selection) {
                 opts.actionGroup = pnl.runActionGroupList.selection.text;
             }
-            opts.dialogOverlayLabelGroups = (pnl.dialogOverlayCheckBox.value)? pnl.overlayPnl.groupTextBox.text : "";
+            // UI 已隱藏：強制關閉對話框涂白（相關代碼保留）
+            opts.dialogOverlayLabelGroups = "";
             if (pnl.overlayPnl.toleranceTextBox.text !== "") {
                 opts.dialogOverlayTolerance = pnl.overlayPnl.toleranceTextBox.text;
             }
@@ -928,11 +931,11 @@ class LabelPlusInput extends GenericUI {
         this.addToPickerList(ret.getOption);
         yy += 160;
 
-        // automation
-        this.automationPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 170]);
+        // automation（對話框涂白 UI 已隱藏，面板縮矮）
+        this.automationPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 75]);
         ret = this.uiAutomationPanel(this.automationPnl);
         this.addToPickerList(ret.getOption);
-        yy += 180;
+        yy += 85;
 
         // help bar
         xx = this.winRect.w - 220;

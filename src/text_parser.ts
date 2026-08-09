@@ -215,12 +215,6 @@ function btRgbToHex(rgb: number[]): string | undefined
     return "#" + toHex(rgb[0]) + toHex(rgb[1]) + toHex(rgb[2]);
 }
 
-function btNormalizeFontFamily(name: string): string
-{
-    // "[toolbox]BuDing-JF" -> "BuDing-JF"
-    return name.replace(/^\[[^\]]*\]/, "");
-}
-
 function btFontStyleFromFlags(bold?: boolean, italic?: boolean): string | undefined
 {
     if (bold && italic) return "Bold Italic";
@@ -333,7 +327,8 @@ export function btTextParser(path: string): LpFile | null
 
                 let font: string | undefined = undefined;
                 if (ff && ff.font_family) {
-                    font = btNormalizeFontFamily(ff.font_family);
+                    // 保留 BT/Qt family 原名（可能含 [toolbox]）；PS PostScript 對應在 importer 解析
+                    font = ff.font_family;
                 }
 
                 let fontStyle: string | undefined = undefined;
