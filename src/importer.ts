@@ -342,6 +342,15 @@ function findOverlayManualFile(overlayManualSource: string, originalFilename: st
     return null; // 找不到匹配的文件
 }
 
+// 強制文件 PPI 為 72（只改元數據，不重採樣像素）。
+// 字級/涂白收縮等以 pt 為單位的屬性皆按 72 PPI 計算。
+function forceDocResolution72(doc: Document): void
+{
+    if (doc.resolution !== 72) {
+        doc.resizeImage(undefined, undefined, 72, ResampleMethod.NONE);
+    }
+}
+
 function openImageWorkspace(img_filename: string): ImageWorkspace | null
 {
     assert(opts !== null);
@@ -355,8 +364,10 @@ function openImageWorkspace(img_filename: string): ImageWorkspace | null
         return null; //note: do not exit if image not exist
     }
 
+    forceDocResolution72(bgDoc);
+
     // 不使用模板：直接新建文件
-    let wsDoc: Document = app.documents.add(bgDoc.width, bgDoc.height, bgDoc.resolution, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
+    let wsDoc: Document = app.documents.add(bgDoc.width, bgDoc.height, 72, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
     wsDoc.activeLayer.name = TEMPLATE_LAYER.IMAGE;
 
     // wsDoc is clean, check template elements, if a element not exist
@@ -422,6 +433,7 @@ function openImageWorkspace(img_filename: string): ImageWorkspace | null
                 let overlayManualFile = findOverlayManualFile(opts.overlayManualSource, img_filename);
                 if (overlayManualFile !== null) {
                     let overlayManualDoc = app.open(overlayManualFile);
+                    forceDocResolution72(overlayManualDoc);
                     app.activeDocument = overlayManualDoc;
                     overlayManualDoc.selection.selectAll();
                     overlayManualDoc.selection.copy();
@@ -472,6 +484,7 @@ function openImageWorkspace(img_filename: string): ImageWorkspace | null
                 let overlayManualFile = findOverlayManualFile(opts.overlayManualSource, img_filename);
                 if (overlayManualFile !== null) {
                     let overlayManualDoc = app.open(overlayManualFile);
+                    forceDocResolution72(overlayManualDoc);
                     app.activeDocument = overlayManualDoc;
                     overlayManualDoc.selection.selectAll();
                     overlayManualDoc.selection.copy();
