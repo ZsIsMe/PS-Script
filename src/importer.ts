@@ -1314,15 +1314,13 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
     // 旋轉：在內容寫入後、描邊套用前進行；以圖層中心為錨點
     // 描邊圖層樣式會跟隨變換，所以順序對描邊結果沒有影響
     //
-    // 旋轉方向慣例轉換（重要）：
-    //   - 來源資料 (InDesign 匯出)：正值 = 逆時針，負值 = 順時針
-    //   - Photoshop ArtLayer.rotate()：正值 = 順時針，負值 = 逆時針
-    //   兩者方向相反，必須取負後再傳入 PS
+    // 角度慣例與 Photoshop 一致（與 PS 匯出相同）：
+    //   正值 = 順時針，負值 = 逆時針（等同 ArtLayer.rotate()）
     if (typeof topts.rotation === "number" && !isNaN(topts.rotation)) {
         let deg = normalizeRotation(topts.rotation);
         if (deg !== 0) {
             try {
-                artLayerRef.rotate(-deg, AnchorPosition.MIDDLECENTER);
+                artLayerRef.rotate(deg, AnchorPosition.MIDDLECENTER);
             } catch (e) {
                 log_err("rotate text layer failed: " + e.toString());
             }

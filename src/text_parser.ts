@@ -15,7 +15,7 @@ export interface LpLabel {
     color?: string; // 文字顏色（HEX 字串，例如 "#000000"）
     strokeColor?: string; // 描邊顏色（HEX 字串，空字串表示不描邊）
     strokeWeight?: number; // 描邊寬度（單位：px），0 表示不描邊
-    rotation?: number; // 文字旋轉角度（度，InDesign 慣例：正值=逆時針，負值=順時針），會正規化到 (-180, 180]
+    rotation?: number; // 文字旋轉角度（度，Photoshop 慣例：正值=順時針，負值=逆時針），會正規化到 (-180, 180]
     // 文字框（相對座標 0–1；BT 等有框資訊時填入；x/y 為左上角，w/h 為寬高）
     boxX?: number;
     boxY?: number;
@@ -53,7 +53,7 @@ export interface MeoLabel {
     color?: string; // 文字顏色（HEX，如 "#000000"）
     "stroke-color"?: string; // 描邊顏色（HEX，空字串表示不描邊）
     "stroke-weight"?: number; // 描邊寬度（px，0 表示不描邊）
-    rotation?: number; // 文字旋轉角度（度，InDesign 慣例：正值=逆時針，負值=順時針）
+    rotation?: number; // 文字旋轉角度（度，Photoshop 慣例：正值=順時針，負值=逆時針）
 }
 
 export interface MeoFile {
