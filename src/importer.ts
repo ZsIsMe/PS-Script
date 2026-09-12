@@ -325,6 +325,38 @@ function findOverlayManualFile(overlayManualSource: string, originalFilename: st
     return null; // 找不到匹配的文件
 }
 
+// 強制文件 PPI 為 72（只改元數據，不重採樣像素）。
+// 字級/涂白收縮等以 pt 為單位的屬性皆按 72 PPI 計算。
+function forceDocResolution72(doc: Document): void
+{
+    if (doc.resolution !== 72) {
+        doc.resizeImage(undefined, undefined, 72, ResampleMethod.NONE);
+    }
+}
+
+function isUserCancelled(e: any): boolean
+{
+    if (!e) return false;
+    if (e.number === 8007 || e.number === -128) return true;
+    let msg = String(e.message || e).toLowerCase();
+    return msg.indexOf("cancel") !== -1;
+}
+
+// 靜默開檔：關掉色彩描述檔不符／缺少描述檔等詢問框
+function openSilent(fileObj: File): Document
+{
+    try {
+        let s2t = (s: string) => app.stringIDToTypeID(s);
+        let desc = new ActionDescriptor();
+        desc.putPath(s2t("null"), fileObj);
+        app.executeAction(s2t("open"), desc, DialogModes.NO);
+        return app.activeDocument;
+    } catch (e) {
+        if (isUserCancelled(e)) throw e;
+        return app.open(fileObj);
+    }
+}
+
 function openImageWorkspace(img_filename: string, template_path: string): ImageWorkspace | null
 {
     assert(opts !== null);
@@ -333,20 +365,22 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
     let bgDoc: Document;
     try {
         let bgFile = new File(opts.source + dirSeparator + img_filename);
-        bgDoc = app.open(bgFile);
+        bgDoc = openSilent(bgFile);
     } catch {
         return null; //note: do not exit if image not exist
     }
 
+    forceDocResolution72(bgDoc);
+
     // if template is enabled, open template; or create a new file
     let wsDoc: Document; // workspace document
     if (opts.docTemplate == OptionDocTemplate.No) {
-        wsDoc = app.documents.add(bgDoc.width, bgDoc.height, bgDoc.resolution, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
+        wsDoc = app.documents.add(bgDoc.width, bgDoc.height, 72, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
         wsDoc.activeLayer.name = TEMPLATE_LAYER.IMAGE;
     } else {
         let docFile = new File(template_path);  //note: if template must do not exist, crash
-        wsDoc = app.open(docFile);
-        wsDoc.resizeImage(undefined, undefined, bgDoc.resolution);
+        wsDoc = openSilent(docFile);
+        forceDocResolution72(wsDoc);
         wsDoc.resizeCanvas(bgDoc.width, bgDoc.height);
     }
 
@@ -412,7 +446,8 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
             try {
                 let overlayManualFile = findOverlayManualFile(opts.overlayManualSource, img_filename);
                 if (overlayManualFile !== null) {
-                    let overlayManualDoc = app.open(overlayManualFile);
+                    let overlayManualDoc = openSilent(overlayManualFile);
+                    forceDocResolution72(overlayManualDoc);
                     app.activeDocument = overlayManualDoc;
                     overlayManualDoc.selection.selectAll();
                     overlayManualDoc.selection.copy();
@@ -462,7 +497,8 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
             try {
                 let overlayManualFile = findOverlayManualFile(opts.overlayManualSource, img_filename);
                 if (overlayManualFile !== null) {
-                    let overlayManualDoc = app.open(overlayManualFile);
+                    let overlayManualDoc = openSilent(overlayManualFile);
+                    forceDocResolution72(overlayManualDoc);
                     app.activeDocument = overlayManualDoc;
                     overlayManualDoc.selection.selectAll();
                     overlayManualDoc.selection.copy();
@@ -596,6 +632,10 @@ export function importFiles(custom_opts: CustomOptions): boolean
     log(Stdlib.listProps(opts));
     log("Properties end   ------------------");
 
+    let origDialogs = app.displayDialogs;
+    try {
+        app.displayDialogs = DialogModes.NO;
+
     //解析文本文件（支援LabelPlus和Meo格式）
     let lpFile: LpFile | null = null;
     let filePath = opts.lpTextFilePath;
@@ -719,8 +759,11 @@ export function importFiles(custom_opts: CustomOptions): boolean
         }
         log(name_pair + ": done");
     }
-    log("All Done!");
-    return true;
+        log("All Done!");
+        return true;
+    } finally {
+        app.displayDialogs = origDialogs;
+    }
 };
 
 
