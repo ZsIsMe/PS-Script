@@ -35,10 +35,10 @@ interface LabelInfo {
 interface ImageWorkspace {
     doc: Document;
 
-    bgLayer: ArtLayer;
-    textTemplateLayer: ArtLayer;
-    dialogOverlayLayer: ArtLayer;
-    overlayManualLayer: ArtLayer;
+    bgLayer?: ArtLayer;
+    textTemplateLayer?: ArtLayer;
+    dialogOverlayLayer?: ArtLayer;
+    overlayManualLayer?: ArtLayer;
 
     pendingDelLayerList: ArtLayer[];
     groups: GroupDict;
@@ -214,7 +214,7 @@ function importImage(img: ImageInfo): boolean
     }
 
     // 找出需要涂白的标签,记录他们的坐标,执行涂白
-    if (opts.dialogOverlayLabelGroups) {
+    if (!usesPsdSource(opts) && opts.dialogOverlayLabelGroups && img.ws.bgLayer && img.ws.dialogOverlayLayer) {
         let points = new Array();
         let groups = opts.dialogOverlayLabelGroups.split(",");
         for (let j = 0; j < img.labels.length; j++) {
@@ -257,12 +257,12 @@ function importImage(img: ImageInfo): boolean
     }
 
     // adjust layer order
-    if (img.ws.bgLayer) {
+    if (img.ws.bgLayer && img.ws.overlayManualLayer) {
         // move overlay-manual before bg
         log('move "overlay-manual" before "bg"');
         img.ws.overlayManualLayer.move(img.ws.bgLayer, ElementPlacement.PLACEBEFORE);
         
-        if (opts.dialogOverlayLabelGroups !== "") {
+        if (opts.dialogOverlayLabelGroups !== "" && img.ws.dialogOverlayLayer) {
             log('move "dialog-overlay" before "overlay-manual"');
             img.ws.dialogOverlayLayer.move(img.ws.overlayManualLayer, ElementPlacement.PLACEBEFORE);
         }
@@ -360,6 +360,8 @@ function openSilent(fileObj: File): Document
 function openImageWorkspace(img_filename: string, template_path: string): ImageWorkspace | null
 {
     assert(opts !== null);
+
+    if (usesPsdSource(opts)) return openPsdWorkspace(img_filename);
 
     // open background image
     let bgDoc: Document;
@@ -584,6 +586,59 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
     return ws;
 }
 
+// Duplicate the complete document so masks, groups, visibility and document settings survive.
+// Only newly created translation layers/groups are owned by this workspace.
+function moveToDocumentTop(layer: ArtLayer | LayerSet, doc: Document): void
+{
+    let top = doc.layers[0];
+    if (top !== layer) layer.move(top, ElementPlacement.PLACEBEFORE);
+}
+
+function openPsdWorkspace(filename: string): ImageWorkspace | null
+{
+    assert(opts !== null);
+    let source: Document | undefined;
+    let file = new File(opts.psdSource + dirSeparator + filename);
+    // Do not close a source document the user already had open.
+    for (let i = 0; i < app.documents.length; i++) {
+        try {
+            if (app.documents[i].fullName.fsName === file.fsName) source = app.documents[i];
+        } catch (e) { /* Unsaved documents do not have a fullName. */ }
+    }
+    let alreadyOpen = source !== undefined;
+    try {
+        if (!source) source = openSilent(file);
+    } catch (e) {
+        if (isUserCancelled(e)) throw e;
+        return null;
+    }
+    let doc: Document;
+    try {
+        doc = source.duplicate(filename, false);
+    } finally {
+        if (!alreadyOpen) source.close(SaveOptions.DONOTSAVECHANGES);
+    }
+    app.activeDocument = doc;
+    let groups: GroupDict = {};
+    for (let name of opts.groupSelected) {
+        let group: Group = {};
+        if (!opts.noLayerGroup) {
+            group.layerSet = doc.layerSets.add();
+            group.layerSet.name = name;
+            group.layerSet.blendMode = BlendMode.NORMAL;
+            moveToDocumentTop(group.layerSet, doc);
+        }
+        groups[name] = group;
+    }
+    if (opts.outputLabelIndex) {
+        let layerSet = doc.layerSets.add();
+        layerSet.name = "Label";
+        moveToDocumentTop(layerSet, doc);
+        groups["_Label"] = { layerSet: layerSet };
+    }
+    return { doc: doc, groups: groups, pendingDelLayerList: [] };
+}
+
 function closeImage(img: ImageInfo, saveType: OptionOutputType = OptionOutputType.PSD): boolean
 {
     assert(opts !== null);
@@ -626,6 +681,17 @@ function closeImage(img: ImageInfo, saveType: OptionOutputType = OptionOutputTyp
 export function importFiles(custom_opts: CustomOptions): boolean
 {
     opts = custom_opts;
+
+    if (usesPsdSource(opts)) {
+        // Enforce mutual exclusion even for saved settings or non-UI callers.
+        opts.docTemplate = OptionDocTemplate.No;
+        opts.overlayManualSource = "";
+        opts.dialogOverlayLabelGroups = "";
+        if (new Folder(opts.psdSource).fsName.toLowerCase() === new Folder(opts.target).fsName.toLowerCase()) {
+            log_err(I18n.ERROR_PSD_OUTPUT_IS_SOURCE);
+            return false;
+        }
+    }
 
     log("Start import process!!!");
     log("Properties start ------------------");
@@ -1166,6 +1232,8 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
 
     if (topts.lgroup)
         artLayerRef.move(topts.lgroup, ElementPlacement.PLACEATBEGINNING);
+    else if (opts && usesPsdSource(opts))
+        moveToDocumentTop(artLayerRef, doc);
 
     if ((topts.lending) && (topts.lending != 0)) {
         textItemRef.useAutoLeading = true;

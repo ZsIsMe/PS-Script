@@ -54,6 +54,18 @@ graph TD
 
 ## 概述
 
+### 直接導入已有 PSD（與圖源模式互斥）
+
+在「輸入」面板填寫 **PSD導入路徑**，即可直接以已有 PSD 的副本添加翻譯文字。
+
+1. 選擇翻譯文本和 PSD 文件夾。文件按主檔名匹配，例如文本中的 `001.png` 對應 `001.psd`；只匹配所選文件夾，不搜尋子文件夾。
+2. 點擊「檢查匹配結果」，並選擇需要導入的圖片和翻譯分組。
+3. 選擇與 PSD 來源不同的輸出目錄，輸出類型選 PSD，執行導入。
+
+填寫 PSD 路徑後，圖源、涂白文件夾、按順序匹配、替換後綴、模板和自動涂白設定會停用；清空 PSD 路徑即可恢復原流程。
+
+PSD 模式複製整份文檔，保留原圖層、分組、蒙版及文檔設定（包括原分辨率），並在原內容上方建立翻譯文字。不新增 `bg`、`overlay-manual` 或 `dialog-overlay`；原 PSD 中已有的同名圖層會保留。原始 PSD 不會被保存修改。若原 PSD 已在 Photoshop 打開，也不會將其關閉。
+
 LabelPlus是一个用于图片翻译的工具包，本工程是其中的Photoshop文本导入工具，它读入翻译文本，并将文本逐条添加到PSD档中。
 
 脚本用到的开源项目：
@@ -94,3 +106,10 @@ $ ./build.sh
 ```
 
 建置完成後，會在 `build/` 目錄生成 `LabelPlus_Ps_Script_ZS.jsx` 腳本文件，可直接在 Photoshop 中使用。
+
+PSD 導入邏輯的模擬檢查（不啟動 Photoshop）：
+
+```sh
+node node_modules/typescript/bin/tsc -p . --outFile build/app.js
+node tests/psd_import.test.js
+```

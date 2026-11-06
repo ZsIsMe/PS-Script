@@ -19,6 +19,7 @@ namespace I18n {
 
     export var LABEL_TEXT_FILE: string = "LabelPlus文本:";
     export var LABEL_MEO_FILE: string = "Meo格式文本:";
+    export var LABEL_PSD_SOURCE: string = "PSD導入路徑:";
     export var LABEL_SOURCE: string = "圖源:";
     export var LABEL_OVERLAY_MANUAL_SOURCE: string = "涂白文件夾:";
     export var LABEL_TARGET: string = "輸出路徑:";
@@ -59,6 +60,8 @@ namespace I18n {
     export var ERROR_UNEXPECTED: string = "意外錯誤，請聯繫維護人員...";
     export var ERROR_FILE_OPEN_FAIL: string = "打開文件失敗，請確認Photoshop是否能打開該文件。";
     export var ERROR_FILE_SAVE_FAIL: string = "文件保存失敗，請檢查是否有磁盤操作權限並確認磁盤空間是否充足。";
+    export var ERROR_NOT_FOUND_PSD_SOURCE: string = "未找到PSD導入路徑！";
+    export var ERROR_PSD_OUTPUT_IS_SOURCE: string = "PSD導入路徑與輸出路徑必須不同，以保留原PSD文件。";
     export var ERROR_NOT_FOUND_SOURCE: string = "未找到圖源路徑！";
     export var ERROR_NOT_FOUND_OVERLAY_MANUAL_SOURCE: string = "未找到涂白文件夾路徑！";
     export var ERROR_NOT_FOUND_TARGET: string = "未找到輸出PSD路徑！";
@@ -94,6 +97,7 @@ namespace I18n {
         RB_TEMPLATE_CUSTOM = "Custom Template";
         LABEL_TEXT_FILE = "Text file";
         LABEL_MEO_FILE = "Meo format file";
+        LABEL_PSD_SOURCE = "PSD Source:";
         LABEL_SOURCE = "Image Source:";
         LABEL_OVERLAY_MANUAL_SOURCE = "Overlay Manual Source:";
         LABEL_TARGET = "Output Folder:";
@@ -129,6 +133,8 @@ namespace I18n {
         ERROR_UNEXPECTED = "Unexpected error, please contact with maintenance...";
         ERROR_FILE_OPEN_FAIL = "open file failed, please confirm whether Photoshop can open the file.";
         ERROR_FILE_SAVE_FAIL = "File saving failed, please check whether you have disk operation permission and whether the disk space is sufficient.";
+        ERROR_NOT_FOUND_PSD_SOURCE = "PSD Source Folder Not Found!";
+        ERROR_PSD_OUTPUT_IS_SOURCE = "Choose an output folder different from the PSD source folder to preserve the originals.";
         ERROR_NOT_FOUND_SOURCE = "Image Source Folder Not Found!";
         ERROR_NOT_FOUND_OVERLAY_MANUAL_SOURCE = "Overlay Manual Source Folder Not Found!";
         ERROR_NOT_FOUND_TARGET = "Output PSD Folder Not Found!";

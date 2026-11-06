@@ -56,6 +56,11 @@ class LabelPlusInput extends GenericUI {
     private getMatchedFileList = () => {
         let pnl = this.inputPnl;
         let selectedList = getSelectedItemsText(pnl.chooseImageListBox);
+        if (pnl.psdSourceTextBox.text.trim() !== "") {
+            return selectedList.map(item => ({
+                file: item.text, matched_file: psdFilename(item.text), index: item.index
+            }));
+        }
         let fileList = getImageFilesListOfPath(pnl.sourceTextBox.text);
         let replaceImgSuffix = (pnl.replaceImgSuffixCheckBox.value) ? pnl.replaceImgSuffixTextbox.text : "";
         let matchImgByOrder = pnl.matchImgByOrderCheckBox.value;
@@ -328,6 +333,24 @@ class LabelPlusInput extends GenericUI {
 
         pnl.text = I18n.PANEL_INPUT;
 
+        // A nonempty path selects the mutually exclusive PSD import mode.
+        pnl.psdSourceLabel = pnl.add('statictext', [xx, yy, xx + 90, yy + 20], I18n.LABEL_PSD_SOURCE);
+        xx += 95;
+        pnl.psdSourceTextBox = pnl.add('edittext', [xx, yy, xx + 200, yy + 20], this.opts.psdSource || '');
+        xx += 205;
+        pnl.psdSourceBrowse = pnl.add('button', [xx, yy - 2, xx + 30, yy + 20], '...');
+        pnl.psdSourceBrowse.onClick = () => {
+            let f = Stdlib.selectFolder(I18n.LABEL_PSD_SOURCE, pnl.psdSourceTextBox.text || Folder.desktop);
+            if (f) {
+                pnl.psdSourceTextBox.text = f.fsName;
+                this.updateImportMode();
+            }
+        };
+        pnl.psdSourceTextBox.onChanging = () => this.updateImportMode();
+        pnl.psdSourceTextBox.onChange = () => this.updateImportMode();
+        xx = xOfs;
+        yy += 25;
+
         // image source folder select
         pnl.sourceLabel = pnl.add('statictext', [xx, yy, xx + 80, yy + 20], I18n.LABEL_SOURCE);
         xx += 90;
@@ -389,7 +412,8 @@ class LabelPlusInput extends GenericUI {
                     logwin.append(matchList[i].file + " -> " + I18n.ERROR_NO_MATCH_IMG);
                 }
                 else {
-                    let found = FileIsExists(pnl.sourceTextBox.text + dirSeparator + matchList[i].matched_file);
+                    let source = pnl.psdSourceTextBox.text.trim() || pnl.sourceTextBox.text;
+                    let found = FileIsExists(source + dirSeparator + matchList[i].matched_file);
                     logwin.append(matchList[i].file + "(" + matchList[i].matched_file + ")" + " -> " + (found ? "OK" : I18n.ERROR_NO_MATCH_IMG));
                 }
             }
@@ -426,7 +450,7 @@ class LabelPlusInput extends GenericUI {
         yy += 23;
 
         // selct img（listbox 高度需為「塗白文件夾」等多出的列預留空間，避免底部提示被擠壓）
-        let listBoxH = 225;
+        let listBoxH = 200;
         yOfs = yy;
         pnl.chooseImageLabel = pnl.add('statictext', [xx, yy, xx + 150, yy + 20], I18n.LABEL_SELECT_IMG);
         yy += 23;
@@ -451,17 +475,20 @@ class LabelPlusInput extends GenericUI {
         }
 
         let getOption = (opts: CustomOptions, toFile: boolean): CustomOptions | null => {
+            opts.psdSource = pnl.psdSourceTextBox.text.trim();
             if (!toFile) {
                 // image source folder
-                let f = new Folder(pnl.sourceTextBox.text);
+                let psdMode = usesPsdSource(opts);
+                let f = new Folder(psdMode ? opts.psdSource : pnl.sourceTextBox.text);
                 if (!f || !f.exists) {
-                    alert(I18n.ERROR_NOT_FOUND_SOURCE);
+                    alert(psdMode ? I18n.ERROR_NOT_FOUND_PSD_SOURCE : I18n.ERROR_NOT_FOUND_SOURCE);
                     return null;
                 }
-                opts.source = f.fsName;
+                if (psdMode) opts.psdSource = f.fsName;
+                else opts.source = f.fsName;
 
                 // overlay manual source folder (可選)
-                if (pnl.overlayManualSourceTextBox.text !== "") {
+                if (!psdMode && pnl.overlayManualSourceTextBox.text !== "") {
                     let omf = new Folder(pnl.overlayManualSourceTextBox.text);
                     if (!omf || !omf.exists) {
                         alert(I18n.ERROR_NOT_FOUND_OVERLAY_MANUAL_SOURCE);
@@ -845,7 +872,7 @@ class LabelPlusInput extends GenericUI {
         }
 
         let getOption = (opts: CustomOptions): CustomOptions  | null => {
-            opts.docTemplate =
+            opts.docTemplate = usesPsdSource(opts) ? OptionDocTemplate.No :
                 pnl.docTemplatePnl.autoTemplateRb.value ? OptionDocTemplate.Auto : (
                     pnl.docTemplatePnl.noTemplateRb.value ? OptionDocTemplate.No : (
                         pnl.docTemplatePnl.customTemplateRb.value ? OptionDocTemplate.Custom : OptionDocTemplate.Auto
@@ -977,7 +1004,7 @@ class LabelPlusInput extends GenericUI {
             if (pnl.runActionGroupCheckBox.value && pnl.runActionGroupList.selection) {
                 opts.actionGroup = pnl.runActionGroupList.selection.text;
             }
-            opts.dialogOverlayLabelGroups = (pnl.dialogOverlayCheckBox.value)? pnl.overlayPnl.groupTextBox.text : "";
+            opts.dialogOverlayLabelGroups = (!usesPsdSource(opts) && pnl.dialogOverlayCheckBox.value)? pnl.overlayPnl.groupTextBox.text : "";
             if (pnl.overlayPnl.toleranceTextBox.text !== "") {
                 opts.dialogOverlayTolerance = pnl.overlayPnl.toleranceTextBox.text;
             }
@@ -991,11 +1018,27 @@ class LabelPlusInput extends GenericUI {
         return {};
     }
 
+    private updateImportMode = () => {
+        let pnl = this.inputPnl;
+        let psdMode = pnl.psdSourceTextBox.text.trim() !== "";
+        for (let control of [pnl.sourceLabel, pnl.sourceTextBox, pnl.sourceBrowse,
+            pnl.overlayManualSourceLabel, pnl.overlayManualSourceTextBox, pnl.overlayManualSourceBrowse,
+            pnl.matchImgByOrderCheckBox, pnl.replaceImgSuffixCheckBox]) {
+            control.enabled = !psdMode;
+        }
+        pnl.replaceImgSuffixTextbox.enabled = !psdMode && pnl.replaceImgSuffixCheckBox.value;
+        pnl.setSourceFileTypeList.enabled = !psdMode && pnl.replaceImgSuffixCheckBox.value;
+        this.stylePnl.docTemplatePnl.enabled = !psdMode;
+        this.automationPnl.dialogOverlayCheckBox.enabled = !psdMode;
+        this.automationPnl.overlayPnl.enabled = !psdMode && this.automationPnl.dialogOverlayCheckBox.value;
+    }
+
     private allPanelEnable = (enable: boolean) => {
         this.inputPnl.enabled = enable;
         this.outputPnl.enabled = enable;
         this.stylePnl.enabled = enable;
         this.automationPnl.enabled = enable;
+        this.updateImportMode();
     }
 
     public mainPannel = (pnl: any) => {
@@ -1082,10 +1125,15 @@ LabelPlusInput.prototype.validatePanel = function (pnl: any, ini: any, tofile: b
         return true; // continue, will not close the indow
     }
 
+    if (usesPsdSource(opts) && new Folder(opts.psdSource).fsName.toLowerCase() === new Folder(opts.target).fsName.toLowerCase()) {
+        alert(I18n.ERROR_PSD_OUTPUT_IS_SOURCE);
+        return true;
+    }
+
     // check image source exsits
     for (let i = 0; i < opts.imageSelected.length; i++) {
         let item = opts.imageSelected[i];
-        if (!FileIsExists(opts.source + dirSeparator + item.matched_file)) {
+        if (!FileIsExists((usesPsdSource(opts) ? opts.psdSource : opts.source) + dirSeparator + item.matched_file)) {
             alert(I18n.ERROR_HAVE_NO_MATCH_IMG, 'error', true);
             Emit(this.inputPnl.checkSourceMatchButton.onClick);
             return true; // continue, will not close the indow

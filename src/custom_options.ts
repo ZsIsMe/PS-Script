@@ -12,10 +12,20 @@ export class ImageInfo {
     index: number = 0;
 };
 
+export function usesPsdSource(opts: CustomOptions): boolean {
+    return !!opts.psdSource && opts.psdSource.trim() !== "";
+}
+
+export function psdFilename(filename: string): string {
+    let dot = filename.lastIndexOf(".");
+    return (dot > 0 ? filename.substring(0, dot) : filename) + ".psd";
+}
+
 export class CustomOptions {
 
     // ------------------------------------ not saved options
     source: string = ""; // images source folder
+    psdSource: string = ""; // nonempty selects PSD import instead of the image/template pipeline
     target: string = ""; // images target folder
     overlayManualSource: string = ""; // overlay manual images source folder
     lpTextFilePath: string = ""; // path of labelplus text file
