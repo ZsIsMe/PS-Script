@@ -37,6 +37,8 @@ export class CustomOptions {
     docTemplateCustomPath: string = "";  // custom image document template path
 
     outputType: OptionOutputType = OptionOutputType.PSD; // output image file type
+    ppi: number = 72; // positive = enabled; negative = disabled but remember the value; 0 = disabled
+    antiAlias: number = 0; // 0 = unset; 1..5 = None/Sharp/Crisp/Strong/Smooth; negative = disabled but remembered
     ignoreNoLabelImg: boolean = false; // ignore images with no label
     noLayerGroup: boolean = false; // do not create group in document for text layers
     notClose: boolean = false; // do not close image document

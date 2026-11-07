@@ -597,6 +597,18 @@ class LabelPlusInput extends GenericUI {
         xx = xOfs;
         yy += 23;
 
+        // PPI is shared by image and PSD import modes. Old settings default to 72.
+        pnl.setPPICheckBox = pnl.add('checkbox', [xx, yy, xx + 120, yy + 20], I18n.CHECKBOX_SET_PPI);
+        pnl.ppiTextBox = pnl.add('edittext', [xx + 125, yy, xx + 185, yy + 20], '72');
+        pnl.ppiTextBox.onChanging = GenericUI.numericKeystrokeFilter;
+        let savedPpi = this.opts.ppi === undefined ? 72 : this.opts.ppi;
+        pnl.setPPICheckBox.value = savedPpi > 0;
+        pnl.ppiTextBox.text = String(Math.abs(savedPpi) || 72);
+        pnl.setPPICheckBox.onClick = () => {
+            pnl.ppiTextBox.enabled = pnl.setPPICheckBox.value;
+        };
+        Emit(pnl.setPPICheckBox.onClick);
+        yy += 23;
 
         let opts = this.opts;
         if (opts.outputLabelIndex !== undefined) {
@@ -646,6 +658,13 @@ class LabelPlusInput extends GenericUI {
             opts.noLayerGroup = pnl.noLayerGroupCheckBox.value;
             opts.centerAlign = pnl.centerAlignCheckBox.value;
             opts.useMeoFontSize = pnl.useMeoFontSizeCheckBox.value;
+            let ppiValue = Number(pnl.ppiTextBox.text);
+            let validPpi = isFinite(ppiValue) && ppiValue > 0 && Math.floor(ppiValue) === ppiValue;
+            if (pnl.setPPICheckBox.value && !validPpi) {
+                alert(I18n.ERROR_INVALID_PPI);
+                return null;
+            }
+            opts.ppi = validPpi ? (pnl.setPPICheckBox.value ? ppiValue : -ppiValue) : 0;
             return opts;
         }
 
@@ -731,6 +750,19 @@ class LabelPlusInput extends GenericUI {
             xx = xOfs;
             yy += 25;
         }
+
+        // Anti-alias applies only to newly imported translation text.
+        pnl.setAntiAliasCheckBox = pnl.add('checkbox', [xx, yy, xx + 100, yy + 20], I18n.CHECKBOX_SET_ANTI_ALIAS);
+        pnl.antiAliasList = pnl.add('dropdownlist', [xx + 105, yy - 1, xx + 205, yy + 21], I18n.LIST_ANTI_ALIAS_ITEMS);
+        let savedAntiAlias = this.opts.antiAlias || 0;
+        let antiAliasIndex = Math.abs(savedAntiAlias);
+        pnl.antiAliasList.selection = antiAliasIndex >= 1 && antiAliasIndex <= 5 ? antiAliasIndex - 1 : 4;
+        pnl.setAntiAliasCheckBox.value = savedAntiAlias > 0;
+        pnl.setAntiAliasCheckBox.onClick = () => {
+            pnl.antiAliasList.enabled = pnl.setAntiAliasCheckBox.value;
+        };
+        Emit(pnl.setAntiAliasCheckBox.onClick);
+        yy += 23;
 
         // leading
         pnl.setTextLeadingCheckBox = pnl.add('checkbox', [xx, yy, xx + 100, yy + 20], I18n.CHECKBOX_SET_LEADING);
@@ -879,6 +911,8 @@ class LabelPlusInput extends GenericUI {
                     )
                 );
             opts.docTemplateCustomPath = pnl.docTemplatePnl.customTemplateTextbox.text;
+            let aliasValue = pnl.antiAliasList.selection.index + 1;
+            opts.antiAlias = pnl.setAntiAliasCheckBox.value ? aliasValue : -aliasValue;
             if (pnl.setFontCheckBox.value) {
                 let font = pnl.font.getFont()
                 opts.font = font.font;
@@ -1071,16 +1105,16 @@ class LabelPlusInput extends GenericUI {
         yy = yOfs;
 
         // output options（多一列 Meo 樣式勾選，需加高）
-        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 168]);
+        this.outputPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 191]);
         ret = this.uiOutputPanel(this.outputPnl);
         this.addToPickerList(ret.getOption);
-        yy += 178;
+        yy += 201;
 
         // style
-        this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 220]);
+        this.stylePnl = pnl.add('panel', [xx, yy, xx + 480, yy + 243]);
         ret = this.uiStylePanel(this.stylePnl);
         this.addToPickerList(ret.getOption);
-        yy += 230;
+        yy += 253;
 
         // automation
         this.automationPnl = pnl.add('panel', [xx, yy, xx + 480, yy + 170]);

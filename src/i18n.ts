@@ -40,6 +40,11 @@ namespace I18n {
     export var CHECKBOX_NOT_CLOSE: string = "不關閉文件";
     export var CHECKBOX_SET_FONT: string = "字體";
     export var CHECKBOX_SET_LEADING: string = "行距";
+    export var CHECKBOX_SET_PPI: string = "設定輸出PPI";
+    export var CHECKBOX_SET_ANTI_ALIAS: string = "消除鋸齒";
+    export var LIST_ANTI_ALIAS_ITEMS: string[] = ["無", "銳利", "犀利", "渾厚", "平滑"];
+    export var ERROR_INVALID_PPI: string = "PPI 必須為正整數。";
+    export var ERROR_PPI_RESIZE_FAIL: string = "設定PPI失敗，已跳過該圖片。";
     export var CHECKBOX_VERTICAL_ROMAN_CHARS: string = "直立字符(直排時)";
     export var CHECKBOX_TATE_CHU_YOKO: string = "自動匹配直排內橫排";
     export var CHECKBOX_TSUME_CHARS: string = "比例間距字符";
@@ -116,6 +121,11 @@ namespace I18n {
         CHECKBOX_NOT_CLOSE = "Don't close image";
         CHECKBOX_SET_FONT = "Font";
         CHECKBOX_SET_LEADING = "Leading";
+        CHECKBOX_SET_PPI = "Set Output PPI";
+        CHECKBOX_SET_ANTI_ALIAS = "Anti-Alias";
+        LIST_ANTI_ALIAS_ITEMS = ["None", "Sharp", "Crisp", "Strong", "Smooth"];
+        ERROR_INVALID_PPI = "PPI must be a positive integer.";
+        ERROR_PPI_RESIZE_FAIL = "Failed to set PPI; image skipped.";
         CHECKBOX_VERTICAL_ROMAN_CHARS = "Upright chars (vertical)";
         CHECKBOX_TATE_CHU_YOKO = "Auto Tate-Chu-Yoko";
         CHECKBOX_TSUME_CHARS = "Tsume chars";

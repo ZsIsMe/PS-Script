@@ -109,6 +109,7 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         direction: textDir,
         lgroup: img.ws.groups[label.group].layerSet,
         lending: opts.textLeading ? opts.textLeading : undefined,
+        antiAlias: opts.antiAlias > 0 ? opts.antiAlias : undefined,
     };
 
     // 如果標籤提供了字體大小，且用戶啟用了該選項，則優先使用
@@ -325,12 +326,30 @@ function findOverlayManualFile(overlayManualSource: string, originalFilename: st
     return null; // 找不到匹配的文件
 }
 
-// 強制文件 PPI 為 72（只改元數據，不重採樣像素）。
-// 字級/涂白收縮等以 pt 為單位的屬性皆按 72 PPI 計算。
-function forceDocResolution72(doc: Document): void
+// Match document resolution without changing pixel dimensions (e.g. before copying layers).
+function setDocResolution(doc: Document, resolution: number): void
 {
-    if (doc.resolution !== 72) {
-        doc.resizeImage(undefined, undefined, 72, ResampleMethod.NONE);
+    if (doc.resolution !== resolution) {
+        doc.resizeImage(undefined, undefined, resolution, ResampleMethod.NONE);
+    }
+}
+
+// Shared by both import modes, after background assembly and before adding text.
+function applyOutputResolution(doc: Document): boolean
+{
+    assert(opts !== null);
+    let resolution = opts.ppi === undefined ? 72 : opts.ppi;
+    if (resolution <= 0) return true;
+    try {
+        if (!isFinite(resolution) || Math.floor(resolution) !== resolution) {
+            throw new Error(I18n.ERROR_INVALID_PPI);
+        }
+        setDocResolution(doc, resolution);
+        return true;
+    } catch (e) {
+        log_err(I18n.ERROR_PPI_RESIZE_FAIL + " " + e.toString());
+        doc.close(SaveOptions.DONOTSAVECHANGES);
+        return false;
     }
 }
 
@@ -372,17 +391,15 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
         return null; //note: do not exit if image not exist
     }
 
-    forceDocResolution72(bgDoc);
-
     // if template is enabled, open template; or create a new file
     let wsDoc: Document; // workspace document
     if (opts.docTemplate == OptionDocTemplate.No) {
-        wsDoc = app.documents.add(bgDoc.width, bgDoc.height, 72, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
+        wsDoc = app.documents.add(bgDoc.width, bgDoc.height, bgDoc.resolution, bgDoc.name, NewDocumentMode.RGB, DocumentFill.TRANSPARENT);
         wsDoc.activeLayer.name = TEMPLATE_LAYER.IMAGE;
     } else {
         let docFile = new File(template_path);  //note: if template must do not exist, crash
         wsDoc = openSilent(docFile);
-        forceDocResolution72(wsDoc);
+        setDocResolution(wsDoc, bgDoc.resolution);
         wsDoc.resizeCanvas(bgDoc.width, bgDoc.height);
     }
 
@@ -449,7 +466,7 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
                 let overlayManualFile = findOverlayManualFile(opts.overlayManualSource, img_filename);
                 if (overlayManualFile !== null) {
                     let overlayManualDoc = openSilent(overlayManualFile);
-                    forceDocResolution72(overlayManualDoc);
+                    setDocResolution(overlayManualDoc, wsDoc.resolution);
                     app.activeDocument = overlayManualDoc;
                     overlayManualDoc.selection.selectAll();
                     overlayManualDoc.selection.copy();
@@ -500,7 +517,7 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
                 let overlayManualFile = findOverlayManualFile(opts.overlayManualSource, img_filename);
                 if (overlayManualFile !== null) {
                     let overlayManualDoc = openSilent(overlayManualFile);
-                    forceDocResolution72(overlayManualDoc);
+                    setDocResolution(overlayManualDoc, wsDoc.resolution);
                     app.activeDocument = overlayManualDoc;
                     overlayManualDoc.selection.selectAll();
                     overlayManualDoc.selection.copy();
@@ -538,6 +555,8 @@ function openImageWorkspace(img_filename: string, template_path: string): ImageW
         }
     }
     bgDoc.close(SaveOptions.DONOTSAVECHANGES);
+
+    if (!applyOutputResolution(wsDoc)) return null;
 
     // 若文档类型为索引色模式 更改为RGB模式
     if (wsDoc.mode == DocumentMode.INDEXEDCOLOR) {
@@ -619,6 +638,7 @@ function openPsdWorkspace(filename: string): ImageWorkspace | null
         if (!alreadyOpen) source.close(SaveOptions.DONOTSAVECHANGES);
     }
     app.activeDocument = doc;
+    if (!applyOutputResolution(doc)) return null;
     let groups: GroupDict = {};
     for (let name of opts.groupSelected) {
         let group: Group = {};
@@ -842,6 +862,7 @@ interface TextInputOptions {
     direction?: Direction;
     lgroup?: LayerSet;
     lending?: number;        // 自动行距
+    antiAlias?: number;      // 1=None, 2=Sharp, 3=Crisp, 4=Strong, 5=Smooth
     color?: string;          // 文字颜色 (HEX，例 "#000000")
     strokeColor?: string;    // 描边颜色 (HEX)
     strokeWeight?: number;   // 描边宽度 (px)
@@ -1238,6 +1259,12 @@ function newTextLayer(doc: Document, text: string, x: number, y: number, topts: 
     if ((topts.lending) && (topts.lending != 0)) {
         textItemRef.useAutoLeading = true;
         textItemRef.autoLeadingAmount = topts.lending;
+    }
+
+    if (topts.antiAlias) {
+        let aaMap = [undefined, AntiAlias.NONE, AntiAlias.SHARP, AntiAlias.CRISP, AntiAlias.STRONG, AntiAlias.SMOOTH];
+        let aa = aaMap[topts.antiAlias];
+        if (aa !== undefined) textItemRef.antiAliasMethod = aa;
     }
 
     artLayerRef.name     = text;
