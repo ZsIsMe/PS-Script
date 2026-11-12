@@ -119,3 +119,7 @@ PSD 導入邏輯的模擬檢查（不啟動 Photoshop）：
 node node_modules/typescript/bin/tsc -p . --outFile build/app.js
 node tests/psd_import.test.js
 ```
+
+勾選「居中對齊」時，譯文以文字自身邊界的中心對齊標記的 `(x, y)`；文字旋轉後仍保持此中心，描邊等圖層效果不參與中心計算。這項定位共用於 PSD 及一般圖源模式。
+
+如需在本機 Photoshop 驗證旋轉定位，先建置 `build/app.js`，再執行 `python tests/prepare_rotation_test.py`，並在 Photoshop 執行生成的 `build/rotation-test.jsx`。測試會建立及關閉臨時文檔，驗證橫排／直排、6 種角度、72／300 PPI 共 24 組，並在 `build/` 寫入 `rotation-results.json` 和修正前後對比 PNG。

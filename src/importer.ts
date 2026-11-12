@@ -172,22 +172,20 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
         log("run action " + label.group + "[" + opts.actionGroup + "]..." + result ? "done" : "fail");
     }
 
-    // Center the layer after the action has been applied, so the bounds are correct
+    // Center the text's own box after rotation/actions, not its axis-aligned pixel bounds.
     if (opts.centerAlign) {
         var ru = app.preferences.rulerUnits;
         app.preferences.rulerUnits = Units.PIXELS;
         try {
-            var bounds = textLayer.bounds;
-            var layerWidth = bounds[2].as('px') - bounds[0].as('px');
-            var layerHeight = bounds[3].as('px') - bounds[1].as('px');
+            var center = getTextLayerCenter(img.ws.doc, textLayer);
             
             // Calculate the target center position in absolute coordinates
             var targetCenterX = img.ws.doc.width.as("px") * label.x;
             var targetCenterY = img.ws.doc.height.as("px") * label.y;
             
             // Calculate current center position
-            var currentCenterX = bounds[0].as('px') + layerWidth / 2;
-            var currentCenterY = bounds[1].as('px') + layerHeight / 2;
+            var currentCenterX = center.x;
+            var currentCenterY = center.y;
             
             // Calculate the offset needed to move current center to target center
             var deltaX = targetCenterX - currentCenterX;
@@ -201,6 +199,42 @@ function importLabel(img: ImageInfo, label: LabelInfo): boolean
     }
     
     return true;
+}
+
+// Photoshop's layer.bounds encloses the rendered glyphs in document axes. For
+// unequal line lengths its center changes under rotation. Instead transform the
+// center of the text's local boundingBox into document pixels.
+function getTextLayerCenter(doc: Document, layer: ArtLayer): { x: number; y: number }
+{
+    if (layer.kind !== LayerKind.TEXT) {
+        // A user action may have rasterized the text.
+        let b = layer.bounds;
+        return { x: (b[0].as("px") + b[2].as("px")) / 2,
+                 y: (b[1].as("px") + b[3].as("px")) / 2 };
+    }
+    app.activeDocument = doc;
+    doc.activeLayer = layer;
+    let s2t = (s: string) => app.stringIDToTypeID(s);
+    let ref = new ActionReference();
+    ref.putProperty(s2t("property"), s2t("textKey"));
+    ref.putEnumerated(s2t("layer"), s2t("ordinal"), s2t("targetEnum"));
+    let text = app.executeActionGet(ref).getObjectValue(s2t("textKey"));
+    let box = text.getObjectValue(s2t("boundingBox"));
+    let scale = doc.resolution / 72; // text boundingBox is in points
+    let x = (box.getUnitDoubleValue(s2t("left")) + box.getUnitDoubleValue(s2t("right"))) * scale / 2;
+    let y = (box.getUnitDoubleValue(s2t("top")) + box.getUnitDoubleValue(s2t("bottom"))) * scale / 2;
+    let xx = 1, xy = 0, yx = 0, yy = 1;
+    if (text.hasKey(s2t("transform"))) {
+        let transform = text.getObjectValue(s2t("transform"));
+        xx = transform.getDouble(s2t("xx"));
+        xy = transform.getDouble(s2t("xy"));
+        yx = transform.getDouble(s2t("yx"));
+        yy = transform.getDouble(s2t("yy"));
+    }
+    // position is the document-space text origin and already includes translation.
+    let origin = layer.textItem.position;
+    return { x: origin[0].as("px") + xx * x + yx * y,
+             y: origin[1].as("px") + xy * x + yy * y };
 }
 
 function importImage(img: ImageInfo): boolean
